@@ -27,11 +27,7 @@ from ...file_utils import (
 
 
 _import_structure = {
-    "configuration_bart": [
-        "BART_PRETRAINED_CONFIG_ARCHIVE_MAP",
-        "BartConfig",
-        "BartOnnxConfig"
-    ],
+    "configuration_bart": ["BART_PRETRAINED_CONFIG_ARCHIVE_MAP", "BartConfig", "BartOnnxConfig"],
     "tokenization_bart": ["BartTokenizer"],
 }
 
@@ -63,11 +59,7 @@ if is_flax_available():
     ]
 
 if TYPE_CHECKING:
-    from .configuration_bart import (
-        BART_PRETRAINED_CONFIG_ARCHIVE_MAP,
-        BartConfig,
-        BartOnnxConfig
-    )
+    from .configuration_bart import BART_PRETRAINED_CONFIG_ARCHIVE_MAP, BartConfig, BartOnnxConfig
     from .tokenization_bart import BartTokenizer
 
     if is_tokenizers_available():
