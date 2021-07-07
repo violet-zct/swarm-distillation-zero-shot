@@ -12,7 +12,7 @@ from transformers import (  # LongformerConfig,
     RobertaConfig,
     T5Config,
     XLMRobertaConfig,
-    is_torch_available,
+    is_torch_available, Wav2Vec2Model, Wav2Vec2Config,
 )
 from transformers.models.albert import AlbertOnnxConfig
 from transformers.models.bart import BartOnnxConfig
@@ -23,6 +23,7 @@ from transformers.models.distilbert import DistilBertOnnxConfig
 from transformers.models.gpt2 import GPT2OnnxConfig
 from transformers.models.roberta import RobertaOnnxConfig
 from transformers.models.t5 import T5OnnxConfig
+from transformers.models.wav2vec2.configuration_wav2vec2 import Wav2Vec2OnnxConfig
 from transformers.models.xlm_roberta import XLMRobertaOnnxConfig
 from transformers.onnx import EXTERNAL_DATA_FORMAT_SIZE_LIMIT, OnnxConfig, ParameterFormat, validate_model_outputs
 from transformers.onnx.config import DEFAULT_ONNX_OPSET, OnnxConfigWithPast
@@ -185,7 +186,8 @@ if is_torch_available():
         # # ("LongFormer", "longformer-base-4096", LongformerModel, LongformerConfig, LongformerOnnxConfig),
         # ("Roberta", "roberta-base", RobertaModel, RobertaConfig, RobertaOnnxConfig),
         # ("XLM-Roberta", "roberta-base", XLMRobertaModel, XLMRobertaConfig, XLMRobertaOnnxConfig),
-        # ("T5", "t5-small", T5Model, T5Config, T5OnnxConfig)
+        # ("T5", "t5-small", T5Model, T5Config, T5OnnxConfig),
+        ("Wav2Vec2", "facebook/wav2vec2-base-960h", Wav2Vec2Model, Wav2Vec2Config, Wav2Vec2OnnxConfig),
     }
 
     PYTORCH_EXPORT_WITH_PAST_MODELS = {
