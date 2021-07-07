@@ -289,6 +289,39 @@ jobs:
             - store_artifacts:
                   path: ~/transformers/reports
 
+    run_test_analysis:
+        working_directory: ~/transformers
+        docker:
+            - image: circleci/python:3.6
+        environment:
+            OMP_NUM_THREADS: 1
+            TRANSFORMERS_IS_CI: yes
+        resource_class: xlarge
+        parallelism: 1
+        steps:
+            - checkout
+            - restore_cache:
+                  keys:
+                      - v0.4-torch-{{ checksum "setup.py" }}
+                      - v0.4-{{ checksum "setup.py" }}
+            - run: sudo apt-get -y update && sudo apt-get install -y libsndfile1-dev
+            - run: pip install --upgrade pip
+            - run: pip install .[sklearn,torch,testing,sentencepiece,speech,vision,timm]
+            - run: pip install torch-scatter -f https://pytorch-geometric.com/whl/torch-1.9.0+cpu.html
+            - run: pip install pytest-forked matplotlib memory_profiler
+            - save_cache:
+                  key: v0.4-torch-{{ checksum "setup.py" }}
+                  paths:
+                      - '~/.cache/pip'
+            - run: mprof run --include-children --multiprocess --python pytest -n 3 --dist=loadfile -s --make-reports=tests_torch ./tests/ | tee tests_output.txt
+            - run: mkdir datfiles && mv *.dat datfiles
+            - store_artifacts:
+                  path: ~/transformers/datfiles
+            - store_artifacts:
+                  path: ~/transformers/tests_output.txt
+            - store_artifacts:
+                  path: ~/transformers/reports
+
     run_examples_torch:
         working_directory: ~/transformers
         docker:
@@ -474,6 +507,7 @@ workflows:
     version: 2
     build_and_test:
         jobs:
+            - run_test_analysis
             - check_code_quality
             - check_repository_consistency
             - run_examples_torch
