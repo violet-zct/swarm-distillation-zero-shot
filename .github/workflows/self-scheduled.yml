@@ -44,7 +44,8 @@ jobs:
 
       - name: Run all tests on GPU
         run: |
-          python -m pytest -n 1 --dist=loadfile --make-reports=tests_torch_gpu --timeout=5 tests
+          echo "Skip"
+#          python -m pytest -n 1 --dist=loadfile --make-reports=tests_torch_gpu --timeout=5 tests
 
       - name: Failure short reports
         if: ${{ always() }}
@@ -59,8 +60,9 @@ jobs:
           HF_HOME: /mnt/cache
           TRANSFORMERS_IS_CI: yes
         run: |
-          pip install -r examples/pytorch/_tests_requirements.txt
-          python -m pytest -n 1 --dist=loadfile --make-reports=examples_torch_gpu --timeout=5 examples
+          echo "Skip"
+#          pip install -r examples/pytorch/_tests_requirements.txt
+#          python -m pytest -n 1 --dist=loadfile --make-reports=examples_torch_gpu --timeout=5 examples
 
       - name: Failure short reports
         if: ${{ always() }}
@@ -71,7 +73,8 @@ jobs:
         env:
           RUN_PIPELINE_TESTS: yes
         run: |
-          python -m pytest -n 1 --dist=loadfile -m is_pipeline_test --make-reports=tests_torch_pipeline_gpu --timeout=5 tests
+          echo "Skip"
+#          python -m pytest -n 1 --dist=loadfile -m is_pipeline_test --make-reports=tests_torch_pipeline_gpu --timeout=5 tests
 
       - name: Failure short reports
         if: ${{ always() }}
@@ -112,7 +115,8 @@ jobs:
           TF_NUM_INTEROP_THREADS: 1
           TF_NUM_INTRAOP_THREADS: 16
         run: |
-          python -m pytest -n 1 --dist=loadfile --make-reports=tests_tf_gpu --timeout=5 tests
+          echo "Skip"
+#          python -m pytest -n 1 --dist=loadfile --make-reports=tests_tf_gpu --timeout=5 tests
 
       - name: Failure short reports
         if: ${{ always() }}
@@ -125,7 +129,8 @@ jobs:
           TF_NUM_INTEROP_THREADS: 1
           TF_NUM_INTRAOP_THREADS: 16
         run: |
-          python -m pytest -n 1 --dist=loadfile -m is_pipeline_test --make-reports=tests_tf_pipeline_gpu --timeout=5 tests
+          echo "Skip"
+#          python -m pytest -n 1 --dist=loadfile -m is_pipeline_test --make-reports=tests_tf_pipeline_gpu --timeout=5 tests
 
       - name: Failure short reports
         if: ${{ always() }}
@@ -220,7 +225,8 @@ jobs:
           TF_NUM_INTEROP_THREADS: 1
           TF_NUM_INTRAOP_THREADS: 16
         run: |
-          python -m pytest -n 1 --dist=loadfile --make-reports=tests_tf_multi_gpu --timeout=5 tests
+          echo "Skip"
+#          python -m pytest -n 1 --dist=loadfile --make-reports=tests_tf_multi_gpu --timeout=5 tests
 
       - name: Failure short reports
         if: ${{ always() }}
@@ -233,7 +239,8 @@ jobs:
           TF_NUM_INTEROP_THREADS: 1
           TF_NUM_INTRAOP_THREADS: 16
         run: |
-          python -m pytest -n 1 --dist=loadfile -m is_pipeline_test --make-reports=tests_tf_pipeline_multi_gpu --timeout=5 tests
+          echo "Skip"
+#          python -m pytest -n 1 --dist=loadfile -m is_pipeline_test --make-reports=tests_tf_pipeline_multi_gpu --timeout=5 tests
 
       - name: Failure short reports
         if: ${{ always() }}
