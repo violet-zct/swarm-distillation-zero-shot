@@ -173,7 +173,7 @@ jobs:
         env:
           MKL_SERVICE_FORCE_INTEL: 1
         run: |
-          python -m pytest -n 1 --dist=loadfile --make-reports=tests_torch_multi_gpu --timeout=5 tests
+          python -m pytest -n 1 --dist=loadfile --make-reports=tests_torch_multi_gpu --timeout=5 -sv tests
 
       - name: Failure short reports
         if: ${{ always() }}
@@ -281,7 +281,8 @@ jobs:
 
       - name: Run all tests on GPU
         run: |
-          python -m pytest -n 1 --dist=loadfile --make-reports=tests_torch_cuda_extensions_gpu --timeout=5 tests/deepspeed tests/extended
+          echo "Skip"
+#          python -m pytest -n 1 --dist=loadfile --make-reports=tests_torch_cuda_extensions_gpu --timeout=5 tests/deepspeed tests/extended
 
       - name: Failure short reports
         if: ${{ always() }}
@@ -322,7 +323,8 @@ jobs:
 
       - name: Run all tests on GPU
         run: |
-          python -m pytest -n 1 --dist=loadfile --make-reports=tests_torch_cuda_extensions_multi_gpu --timeout=5 tests/deepspeed tests/extended
+          echo "Skip"
+#          python -m pytest -n 1 --dist=loadfile --make-reports=tests_torch_cuda_extensions_multi_gpu --timeout=5 tests/deepspeed tests/extended
 
       - name: Failure short reports
         if: ${{ always() }}
