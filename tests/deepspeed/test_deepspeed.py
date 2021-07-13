@@ -293,21 +293,40 @@ class TrainerIntegrationDeepSpeed(TestCasePlus, TrainerIntegrationCommon):
             f"got exception: {context.exception}",
         )
 
-    @unittest.skip("Hangs the CI")
+    # @unittest.skip("Hangs the CI")
     @require_deepspeed_aio
     def test_stage3_nvme_offload(self):
+        i = 0
+        print("Log", i); i += 1
         with mockenv_context(**self.dist_env_1_gpu):
             # this actually doesn't have to be on NVMe, any storage will do since this test only
+            print("Log", i);
+            i += 1
             # runs a simple check that we can use some directory as if it were NVMe
             nvme_path = self.get_auto_remove_tmp_dir()
+            print("Log", i);
+            i += 1
             nvme_config = dict(device="nvme", nvme_path=nvme_path)
             ds_config_zero3_dict = self.get_config_dict(ZERO3)
+            print("Log", i);
+            i += 1
             ds_config_zero3_dict["zero_optimization"]["offload_optimizer"] = nvme_config
+            print("Log", i);
+            i += 1
             ds_config_zero3_dict["zero_optimization"]["offload_param"] = nvme_config
+            print("Log", i);
+            i += 1
             trainer = get_regression_trainer(local_rank=0, fp16=True, deepspeed=ds_config_zero3_dict)
+            print("Log", i);
+            i += 1
             with CaptureLogger(deepspeed_logger) as cl:
+                print("Log", i);
+                i += 1
                 trainer.train()
+            print("Log", i);
+            i += 1
             self.assertIn("DeepSpeed info", cl.out, "expected DeepSpeed logger output but got none")
+        print("Log", i); i += 1
 
     # --- These tests need to run on both zero stages --- #
 
