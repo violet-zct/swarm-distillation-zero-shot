@@ -328,7 +328,7 @@ class TrainerIntegrationDeepSpeed(TestCasePlus, TrainerIntegrationCommon):
             logger.error(f"Log {i}")
             i += 1
             sys.stdout.flush()
-            ds_config_zero3_dict["zero_optimization"]["offload_optimizer"] = nvme_config
+            # ds_config_zero3_dict["zero_optimization"]["offload_optimizer"] = nvme_config
             logger.error(f"Log {i}")
             i += 1
             sys.stdout.flush()
