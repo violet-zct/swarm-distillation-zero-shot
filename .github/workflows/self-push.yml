@@ -206,8 +206,7 @@ jobs:
         run: |
           apt -y update && apt install -y libaio-dev
           pip install --upgrade pip
-          pip install .[testing]
-          pip install deepspeed==0.4.1 -U
+          pip install .[testing,deepspeed]
 #          pip install pytest-timeout
 
       - name: Are GPUs recognized by our DL frameworks
@@ -219,7 +218,7 @@ jobs:
 
       - name: Run all tests on GPU
         run: |
-          python -m pytest -n 1 --dist=loadfile -sv --make-reports=tests_torch_cuda_extensions_gpu tests/deepspeed tests/extended
+          python -m pytest -n 1 --dist=loadfile -sv --make-reports=tests_torch_cuda_extensions_gpu tests/deepspeed tests/extended -k nvme_offload
 
       - name: Failure short reports
         if: ${{ always() }}
