@@ -309,7 +309,7 @@ class TrainerIntegrationDeepSpeed(TestCasePlus, TrainerIntegrationCommon):
     # @require_deepspeed_aio
     def test_stage3_nvme_offload(self):
         i = 0
-        logger = logging.get_logger(__name__)
+        logger = logging.get_logger("transformers")
         logger.error(f"Log {i}")
         i += 1
         sys.stdout.flush()
@@ -333,23 +333,25 @@ class TrainerIntegrationDeepSpeed(TestCasePlus, TrainerIntegrationCommon):
             i += 1
             sys.stdout.flush()
             ds_config_zero3_dict["zero_optimization"]["offload_param"] = nvme_config
-            logger.error("Log", i);
+            logger.error(f"Log {i}")
             i += 1
             sys.stdout.flush()
             trainer = get_regression_trainer(local_rank=0, fp16=True, deepspeed=ds_config_zero3_dict)
-            logger.error("Log", i);
+            logger.error(f"Log {i}")
             i += 1
             sys.stdout.flush()
             with CaptureLogger(deepspeed_logger) as cl:
-                logger.error("Log", i);
+                logger.error(f"Log {i}")
                 i += 1
                 sys.stdout.flush()
                 trainer.train()
-            logger.error("Log", i);
+            logger.error(f"Log {i}")
             i += 1
             sys.stdout.flush()
             self.assertIn("DeepSpeed info", cl.out, "expected DeepSpeed logger output but got none")
-        logger.error("Log", i); i += 1
+            logger.error(f"Log {i}")
+            i += 1
+            sys.stdout.flush()
 
     # --- These tests need to run on both zero stages --- #
 
