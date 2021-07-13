@@ -293,6 +293,7 @@ class TrainerIntegrationDeepSpeed(TestCasePlus, TrainerIntegrationCommon):
             f"got exception: {context.exception}",
         )
 
+    @unittest.skip("Hangs the CI")
     @require_deepspeed_aio
     def test_stage3_nvme_offload(self):
         with mockenv_context(**self.dist_env_1_gpu):
