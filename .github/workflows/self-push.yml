@@ -217,7 +217,7 @@ jobs:
 
       - name: Run all tests on GPU
         run: |
-          python -m pytest -n 1 --dist=loadfile --make-reports=tests_torch_cuda_extensions_gpu tests/deepspeed tests/extended
+          python -m pytest -n 1 --dist=loadfile -sv --make-reports=tests_torch_cuda_extensions_gpu tests/deepspeed tests/extended
 
       - name: Failure short reports
         if: ${{ always() }}
