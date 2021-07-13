@@ -310,25 +310,27 @@ class TrainerIntegrationDeepSpeed(TestCasePlus, TrainerIntegrationCommon):
     def test_stage3_nvme_offload(self):
         i = 0
         logger = logging.get_logger(__name__)
-        logger.error("Log", i); i += 1; sys.stdout.flush()
+        logger.error(f"Log {i}")
+        i += 1
+        sys.stdout.flush()
         with mockenv_context(**self.dist_env_1_gpu):
             # this actually doesn't have to be on NVMe, any storage will do since this test only
-            logger.error("Log", i);
-            i += 1;
+            logger.error(f"Log {i}")
+            i += 1
             sys.stdout.flush()
             # runs a simple check that we can use some directory as if it were NVMe
             nvme_path = self.get_auto_remove_tmp_dir()
-            logger.error("Log", i);
-            i += 1;
+            logger.error(f"Log {i}")
+            i += 1
             sys.stdout.flush()
             nvme_config = dict(device="nvme", nvme_path=nvme_path)
             ds_config_zero3_dict = self.get_config_dict(ZERO3)
-            logger.error("Log", i);
-            i += 1;
+            logger.error(f"Log {i}")
+            i += 1
             sys.stdout.flush()
             ds_config_zero3_dict["zero_optimization"]["offload_optimizer"] = nvme_config
-            logger.error("Log", i);
-            i += 1;
+            logger.error(f"Log {i}")
+            i += 1
             sys.stdout.flush()
             ds_config_zero3_dict["zero_optimization"]["offload_param"] = nvme_config
             logger.error("Log", i);
