@@ -207,7 +207,7 @@ jobs:
           apt -y update && apt install -y libaio-dev
           pip install --upgrade pip
           pip install .[testing]
-          pip install deepspeed==0.4.2
+          pip install deepspeed==0.4.1 -U
 #          pip install pytest-timeout
 
       - name: Are GPUs recognized by our DL frameworks
