@@ -332,7 +332,7 @@ class TrainerIntegrationDeepSpeed(TestCasePlus, TrainerIntegrationCommon):
             logger.error(f"Log {i}")
             i += 1
             sys.stdout.flush()
-            ds_config_zero3_dict["zero_optimization"]["offload_param"] = nvme_config
+            # ds_config_zero3_dict["zero_optimization"]["offload_param"] = nvme_config
             logger.error(f"Log {i}")
             i += 1
             sys.stdout.flush()
@@ -348,7 +348,7 @@ class TrainerIntegrationDeepSpeed(TestCasePlus, TrainerIntegrationCommon):
             logger.error(f"Log {i}")
             i += 1
             sys.stdout.flush()
-            self.assertIn("DeepSpeed info", cl.out, "expected DeepSpeed logger output but got none")
+            # self.assertIn("DeepSpeed info", cl.out, "expected DeepSpeed logger output but got none")
             logger.error(f"Log {i}")
             i += 1
             sys.stdout.flush()
