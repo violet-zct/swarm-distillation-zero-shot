@@ -16,6 +16,7 @@ import dataclasses
 import io
 import json
 import os
+import sys
 import unittest
 from copy import deepcopy
 
@@ -308,34 +309,42 @@ class TrainerIntegrationDeepSpeed(TestCasePlus, TrainerIntegrationCommon):
     # @require_deepspeed_aio
     def test_stage3_nvme_offload(self):
         i = 0
-        print("Log", i); i += 1
+        print("Log", i); i += 1; sys.stdout.flush()
         with mockenv_context(**self.dist_env_1_gpu):
             # this actually doesn't have to be on NVMe, any storage will do since this test only
             print("Log", i);
-            i += 1
+            i += 1;
+            sys.stdout.flush()
             # runs a simple check that we can use some directory as if it were NVMe
             nvme_path = self.get_auto_remove_tmp_dir()
             print("Log", i);
-            i += 1
+            i += 1;
+            sys.stdout.flush()
             nvme_config = dict(device="nvme", nvme_path=nvme_path)
             ds_config_zero3_dict = self.get_config_dict(ZERO3)
             print("Log", i);
-            i += 1
+            i += 1;
+            sys.stdout.flush()
             ds_config_zero3_dict["zero_optimization"]["offload_optimizer"] = nvme_config
             print("Log", i);
-            i += 1
+            i += 1;
+            sys.stdout.flush()
             ds_config_zero3_dict["zero_optimization"]["offload_param"] = nvme_config
             print("Log", i);
             i += 1
+            sys.stdout.flush()
             trainer = get_regression_trainer(local_rank=0, fp16=True, deepspeed=ds_config_zero3_dict)
             print("Log", i);
             i += 1
+            sys.stdout.flush()
             with CaptureLogger(deepspeed_logger) as cl:
                 print("Log", i);
                 i += 1
+                sys.stdout.flush()
                 trainer.train()
             print("Log", i);
             i += 1
+            sys.stdout.flush()
             self.assertIn("DeepSpeed info", cl.out, "expected DeepSpeed logger output but got none")
         print("Log", i); i += 1
 
