@@ -305,7 +305,7 @@ class TrainerIntegrationDeepSpeed(TestCasePlus, TrainerIntegrationCommon):
         )
 
     # @unittest.skip("Hangs the CI")
-    @require_deepspeed_aio
+    # @require_deepspeed_aio
     def test_stage3_nvme_offload(self):
         i = 0
         print("Log", i); i += 1
