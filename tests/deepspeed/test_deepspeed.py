@@ -340,11 +340,11 @@ class TrainerIntegrationDeepSpeed(TestCasePlus, TrainerIntegrationCommon):
             logger.error(f"Log {i}")
             i += 1
             sys.stdout.flush()
-            with CaptureLogger(deepspeed_logger) as cl:
-                logger.error(f"Log {i}")
-                i += 1
-                sys.stdout.flush()
-                trainer.train()
+            # with CaptureLogger(deepspeed_logger) as cl:
+            logger.error(f"Log {i}. Training.")
+            i += 1
+            sys.stdout.flush()
+            trainer.train()
             logger.error(f"Log {i}")
             i += 1
             sys.stdout.flush()
