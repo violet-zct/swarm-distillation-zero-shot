@@ -16,7 +16,6 @@ import dataclasses
 import io
 import json
 import os
-import sys
 import unittest
 from copy import deepcopy
 
@@ -64,24 +63,13 @@ def require_deepspeed_aio(test_case):
     """
     Decorator marking a test that requires deepspeed aio (nvme)
     """
-    i = 100
-    print("Log", i);
-    i += 1
     if not is_deepspeed_available():
         return unittest.skip("test requires deepspeed")(test_case)
-    print("Log", i);
-    i += 1
 
     import deepspeed
-    print("Log", i);
-    i += 1
     from deepspeed.ops.aio import AsyncIOBuilder
-    print("Log", i);
-    i += 1
 
     if not deepspeed.ops.__compatible_ops__[AsyncIOBuilder.NAME]:
-        print("Log", i);
-        i += 1
         return unittest.skip("test requires deepspeed async-io")(test_case)
     else:
         return test_case
@@ -305,53 +293,20 @@ class TrainerIntegrationDeepSpeed(TestCasePlus, TrainerIntegrationCommon):
             f"got exception: {context.exception}",
         )
 
-    # @unittest.skip("Hangs the CI")
-    # @require_deepspeed_aio
+    @require_deepspeed_aio
     def test_stage3_nvme_offload(self):
-        i = 0
-        logger = logging.get_logger("transformers")
-        logger.error(f"Log {i}")
-        i += 1
-        sys.stdout.flush()
         with mockenv_context(**self.dist_env_1_gpu):
             # this actually doesn't have to be on NVMe, any storage will do since this test only
-            logger.error(f"Log {i}")
-            i += 1
-            sys.stdout.flush()
             # runs a simple check that we can use some directory as if it were NVMe
             nvme_path = self.get_auto_remove_tmp_dir()
-            logger.error(f"Log {i}")
-            i += 1
-            sys.stdout.flush()
             nvme_config = dict(device="nvme", nvme_path=nvme_path)
             ds_config_zero3_dict = self.get_config_dict(ZERO3)
-            logger.error(f"Log {i}")
-            i += 1
-            sys.stdout.flush()
-            # ds_config_zero3_dict["zero_optimization"]["offload_optimizer"] = nvme_config
-            logger.error(f"Log {i}")
-            i += 1
-            sys.stdout.flush()
-            # ds_config_zero3_dict["zero_optimization"]["offload_param"] = nvme_config
-            logger.error(f"Log {i}")
-            i += 1
-            sys.stdout.flush()
+            ds_config_zero3_dict["zero_optimization"]["offload_optimizer"] = nvme_config
+            ds_config_zero3_dict["zero_optimization"]["offload_param"] = nvme_config
             trainer = get_regression_trainer(local_rank=0, fp16=True, deepspeed=ds_config_zero3_dict)
-            logger.error(f"Log {i}")
-            i += 1
-            sys.stdout.flush()
-            # with CaptureLogger(deepspeed_logger) as cl:
-            logger.error(f"Log {i}. Training.")
-            i += 1
-            sys.stdout.flush()
-            trainer.train()
-            logger.error(f"Log {i}")
-            i += 1
-            sys.stdout.flush()
-            # self.assertIn("DeepSpeed info", cl.out, "expected DeepSpeed logger output but got none")
-            logger.error(f"Log {i}")
-            i += 1
-            sys.stdout.flush()
+            with CaptureLogger(deepspeed_logger) as cl:
+                trainer.train()
+            self.assertIn("DeepSpeed info", cl.out, "expected DeepSpeed logger output but got none")
 
     # --- These tests need to run on both zero stages --- #
 
