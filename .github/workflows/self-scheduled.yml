@@ -45,7 +45,7 @@ jobs:
 
       - name: Run all tests on GPU
         run: |
-          python -m pytest -n 1 -v --dist=loadfile --make-reports=tests_torch_gpu tests -k adafactor
+          python -m pytest -n 1 -v --dist=loadfile --make-reports=tests_torch_gpu tests/test_trainer.py
 
       - name: Failure short reports
         if: ${{ always() }}
