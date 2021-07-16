@@ -106,7 +106,12 @@ class CanineModelTester:
             token_labels = ids_tensor([self.batch_size, self.seq_length], self.num_labels)
             choice_labels = ids_tensor([self.batch_size], self.num_choices)
 
-        config = CanineConfig(
+        config = self.get_config()
+
+        return config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
+
+    def get_config(self):
+        return CanineConfig(
             hidden_size=self.hidden_size,
             num_hidden_layers=self.num_hidden_layers,
             num_attention_heads=self.num_attention_heads,
@@ -119,8 +124,6 @@ class CanineModelTester:
             is_decoder=False,
             initializer_range=self.initializer_range,
         )
-
-        return config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
 
     def create_and_check_model(
         self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
