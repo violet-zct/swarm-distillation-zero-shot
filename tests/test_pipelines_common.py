@@ -97,6 +97,8 @@ class PipelineTestCaseMeta(type):
             @skipIf(checkpoint is None, "checkpoint does not exist")
             def test(self):
                 model = ModelClass(tiny_config)
+                if hasattr(model, "eval"):
+                    model = model.eval()
                 tokenizer = get_tiny_tokenizer_from_checkpoint(checkpoint)
                 tokenizer.model_max_length = model.config.max_position_embeddings
                 self.run_pipeline_test(model, tokenizer)
