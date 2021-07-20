@@ -15,9 +15,19 @@
 import unittest
 
 from transformers import MODEL_MAPPING, TF_MODEL_MAPPING, FeatureExtractionPipeline, pipeline
-from transformers.testing_utils import is_pipeline_test, nested_simplify
+from transformers.testing_utils import is_pipeline_test, is_vision_available, nested_simplify
 
 from .test_pipelines_common import PipelineTestCaseMeta
+
+
+if is_vision_available():
+    from PIL import Image
+else:
+
+    class Image:
+        @staticmethod
+        def open(*args, **kwargs):
+            pass
 
 
 @is_pipeline_test
@@ -35,7 +45,11 @@ class FeatureExtractionPipelineTests(unittest.TestCase, metaclass=PipelineTestCa
     def run_pipeline_test(self, model, tokenizer):
         feature_extractor = FeatureExtractionPipeline(model=model, tokenizer=tokenizer)
 
-        outputs = feature_extractor("This is a test")
+        try:
+            outputs = feature_extractor("This is a test")
+        except ValueError:
+            outputs = feature_extractor(Image.open("./tests/fixtures/tests_samples/COCO/000000039769.png"))
+
         # Output shape is NxTxE where
         # N = number of sequences passed
         # T = number of tokens in sequence (depends on the tokenizer)
@@ -47,7 +61,15 @@ class FeatureExtractionPipelineTests(unittest.TestCase, metaclass=PipelineTestCa
         self.assertIsInstance(outputs[0][0][0], float)
         self.assertTrue(all(isinstance(el, float) for row in outputs for col in row for el in col))
 
-        outputs = feature_extractor(["This is a test", "Another test"])
+        try:
+            outputs = feature_extractor(["This is a test", "Another test"])
+        except ValueError:
+            outputs = feature_extractor(
+                [
+                    Image.open("./tests/fixtures/tests_samples/COCO/000000039769.png"),
+                    Image.open("./tests/fixtures/tests_samples/COCO/000000039769.png"),
+                ]
+            )
         self.assertIsInstance(outputs, list)
         self.assertEqual(len(outputs), 2)
         self.assertIsInstance(outputs[0], list)
