@@ -103,6 +103,25 @@ class ViTModelTester:
 
         return config, pixel_values, labels
 
+    def get_config(self):
+        """
+        Returns a tiny configuration by default.
+        """
+        return ViTConfig(
+            image_size=self.image_size,
+            patch_size=self.patch_size,
+            num_channels=self.num_channels,
+            hidden_size=self.hidden_size,
+            num_hidden_layers=self.num_hidden_layers,
+            num_attention_heads=self.num_attention_heads,
+            intermediate_size=self.intermediate_size,
+            hidden_act=self.hidden_act,
+            hidden_dropout_prob=self.hidden_dropout_prob,
+            attention_probs_dropout_prob=self.attention_probs_dropout_prob,
+            is_decoder=False,
+            initializer_range=self.initializer_range,
+        )
+
     def create_and_check_model(self, config, pixel_values, labels):
         model = ViTModel(config=config)
         model.to(torch_device)

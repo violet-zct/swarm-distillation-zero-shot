@@ -109,6 +109,9 @@ class DeiTModelTester:
 
         return config, pixel_values, labels
 
+    def get_config(self):
+        return self.prepare_config_and_inputs()[0]
+
     def create_and_check_model(self, config, pixel_values, labels):
         model = DeiTModel(config=config)
         model.to(torch_device)
