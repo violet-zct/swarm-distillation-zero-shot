@@ -338,7 +338,10 @@ def is_torch_tpu_available():
         return False
     if importlib.util.find_spec("torch_xla.core") is None:
         return False
-    return importlib.util.find_spec("torch_xla.core.xla_model") is not None
+    if importlib.util.find_spec("torch_xla.core.xla_model") is None:
+        return False
+    # Last check: we make sure we are actually on TPU and not just on GPU with torch XLA installed.
+    return "XRT_TPU_CONFIG" in os.environ
 
 
 def is_datasets_available():
