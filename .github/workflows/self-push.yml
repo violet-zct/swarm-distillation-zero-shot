@@ -60,7 +60,7 @@ jobs:
           name: test_fetched
           path: test_preparation.txt
 
-      - name: Run all non-slow tests on GPU
+      - name: Run all non-slow tests on GPU la
         run: |
           if [ -f test_list.txt ]; then
             python -m pytest -n 2 --dist=loadfile -v --make-reports=tests_torch_gpu $(cat test_list.txt)
