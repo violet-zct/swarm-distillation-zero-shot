@@ -31,7 +31,7 @@ jobs:
       - name: Launcher docker
         uses: actions/checkout@v2
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: NVIDIA-SMI
         run: |
@@ -49,6 +49,7 @@ jobs:
           python -c "import torch; print('Cuda version:', torch.version.cuda)"
           python -c "import torch; print('CuDNN version:', torch.backends.cudnn.version())"
           python -c "import torch; print('Number of GPUs available:', torch.cuda.device_count())"
+
       
       - name: Fetch the tests to run
         run: |
