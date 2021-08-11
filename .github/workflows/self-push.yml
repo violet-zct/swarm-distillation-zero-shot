@@ -177,6 +177,7 @@ jobs:
       - name: Git in path?
         run: |
           which git
+          git branch
 
       - name: Fetch the tests to run
         run: |
