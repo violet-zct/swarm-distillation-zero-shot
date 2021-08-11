@@ -170,6 +170,14 @@ jobs:
           python -c "import torch; print('CuDNN version:', torch.backends.cudnn.version())"
           python -c "import torch; print('Number of GPUs available:', torch.cuda.device_count())"
 
+      - name: Git init
+        run: |
+          /usr/bin/git init
+
+      - name: Git in path?
+        run: |
+          which git
+
       - name: Fetch the tests to run
         run: |
           python utils/tests_fetcher.py --diff_with_last_commit | tee test_preparation.txt
