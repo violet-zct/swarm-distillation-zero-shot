@@ -89,6 +89,8 @@ def get_modified_python_files(diff_with_last_commit=False):
     - the current head and the master branch if `diff_with_last_commit=False` (default)
     - the current head and its parent commit otherwise.
     """
+    print(PATH_TO_TRANFORMERS)
+    print(os.listdir(PATH_TO_TRANFORMERS))
     repo = Repo(PATH_TO_TRANFORMERS)
 
     if not diff_with_last_commit:
