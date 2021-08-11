@@ -50,7 +50,7 @@ jobs:
 
       - name: Git init
         run: |
-          git init
+          /usr/bin/git init
 
       - name: Git in path?
         run: |
