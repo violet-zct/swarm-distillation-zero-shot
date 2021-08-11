@@ -50,14 +50,10 @@ jobs:
           python -c "import torch; print('CuDNN version:', torch.backends.cudnn.version())"
           python -c "import torch; print('Number of GPUs available:', torch.cuda.device_count())"
 
-      - name: Git init
-        run: |
-          /usr/bin/git init
-          /usr/bin/git fetch origin
-
       - name: Git in path?
         run: |
           which git
+          git branch
 
       - name: Fetch the tests to run
         run: |
@@ -170,11 +166,6 @@ jobs:
           python -c "import torch; print('Cuda version:', torch.version.cuda)"
           python -c "import torch; print('CuDNN version:', torch.backends.cudnn.version())"
           python -c "import torch; print('Number of GPUs available:', torch.cuda.device_count())"
-
-      - name: Git init
-        run: |
-          /usr/bin/git init
-          /usr/bin/git fetch origin
 
       - name: Git in path?
         run: |
