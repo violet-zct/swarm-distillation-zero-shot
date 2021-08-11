@@ -1,7 +1,9 @@
+from typing import Dict
+
 import numpy as np
 
 from ..file_utils import add_end_docstrings, is_tf_available, is_torch_available
-from .base import PIPELINE_INIT_ARGS, Pipeline
+from .base import PIPELINE_INIT_ARGS, GenericTensor, Pipeline
 
 
 if is_tf_available():
@@ -44,6 +46,7 @@ class TextClassificationPipeline(Pipeline):
             else MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING
         )
 
+        self.tokenizer_kwargs = {}
         self.return_all_scores = return_all_scores
 
     def __call__(self, *args, **kwargs):
@@ -62,18 +65,33 @@ class TextClassificationPipeline(Pipeline):
 
             If ``self.return_all_scores=True``, one such dictionary is returned per label.
         """
-        outputs = super().__call__(*args, **kwargs)
+        if "truncation" in kwargs:
+            self.tokenizer_kwargs["truncation"] = kwargs["truncation"]
+        return super().__call__(*args, **kwargs)
 
+    def preprocess(self, inputs, return_tensors=None, **preprocess_parameters) -> Dict[str, GenericTensor]:
+        if return_tensors is None:
+            return_tensors = self.framework
+        return self.tokenizer(inputs, return_tensors=return_tensors, **self.tokenizer_kwargs)
+
+    def forward(self, model_inputs):
+        return self.model(**model_inputs)
+
+    def postprocess(self, model_outputs):
+        outputs = model_outputs["logits"][0]
         if self.model.config.num_labels == 1:
             scores = 1.0 / (1.0 + np.exp(-outputs))
         else:
             scores = np.exp(outputs) / np.exp(outputs).sum(-1, keepdims=True)
+
         if self.return_all_scores:
-            return [
-                [{"label": self.model.config.id2label[i], "score": score.item()} for i, score in enumerate(item)]
-                for item in scores
-            ]
+            return [{"label": self.model.config.id2label[i], "score": score.item()} for i, score in enumerate(scores)]
         else:
-            return [
-                {"label": self.model.config.id2label[item.argmax()], "score": item.max().item()} for item in scores
-            ]
+            return {"label": self.model.config.id2label[scores.argmax().item()], "score": scores.max().item()}
+
+    def run_multi(self, inputs):
+        return [self.run_single(item)[0] for item in inputs]
+
+    def run_single(self, inputs):
+        "This pipeline is odd, and return a list when single item is run"
+        return [super().run_single(inputs)]

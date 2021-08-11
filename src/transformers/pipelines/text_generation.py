@@ -1,5 +1,13 @@
+import enum
+
 from ..file_utils import add_end_docstrings
 from .base import PIPELINE_INIT_ARGS, Pipeline
+
+
+class ReturnType(enum.Enum):
+    TENSORS = 0
+    NEW_TEXT = 1
+    FULL_TEXT = 2
 
 
 @add_end_docstrings(PIPELINE_INIT_ARGS)
@@ -52,6 +60,7 @@ class TextGenerationPipeline(Pipeline):
         return_tensors=False,
         return_text=True,
         return_full_text=None,
+        return_type=ReturnType.FULL_TEXT,
         clean_up_tokenization_spaces=False,
         prefix=None,
         **generate_kwargs
@@ -84,92 +93,101 @@ class TextGenerationPipeline(Pipeline):
             - **generated_token_ids** (:obj:`torch.Tensor` or :obj:`tf.Tensor`, present when ``return_tensors=True``)
               -- The token ids of the generated text.
         """
-        prefix = prefix if prefix is not None else self.model.config.prefix
-        return_full_text = return_full_text if return_full_text is not None else self.return_full_text
+        if prefix is not None:
+            self.prefix = prefix
+        else:
+            self.prefix = self.model.config.prefix
 
-        if isinstance(text_inputs, str):
-            text_inputs = [text_inputs]
-        results = []
-        for prompt_text in text_inputs:
-            # Manage correct placement of the tensors
-            with self.device_placement():
-                if prefix is None and self.model.__class__.__name__ in [
-                    "XLNetLMHeadModel",
-                    "TransfoXLLMHeadModel",
-                    "TFXLNetLMHeadModel",
-                    "TFTransfoXLLMHeadModel",
-                ]:
-                    # For XLNet and TransformerXL we add an article to the prompt to give more state to the model.
-                    prefix = self.XL_PREFIX
+        if return_full_text is not None:
+            self.return_full_text = return_full_text
 
-                if prefix:
-                    prefix_inputs = self._parse_and_tokenize(prefix, padding=False, add_special_tokens=False)
-                    # This impacts max_length and min_length argument that need adjusting.
-                    prefix_length = prefix_inputs["input_ids"].shape[-1]
-                    if generate_kwargs.get("max_length", None) is not None:
-                        generate_kwargs["max_length"] += prefix_length
-                    if generate_kwargs.get("min_length", None) is not None:
-                        generate_kwargs["min_length"] += prefix_length
+        if return_tensors:
+            self.return_type = ReturnType.TENSORS
+        elif self.return_full_text:
+            self.return_type = ReturnType.FULL_TEXT
+        else:
+            self.return_type = ReturnType.NEW_TEXT
 
-                prefix = prefix or ""
-                inputs = self._parse_and_tokenize(prefix + prompt_text, padding=False, add_special_tokens=False)
+        self.clean_up_tokenization_spaces = clean_up_tokenization_spaces
+        self.generate_kwargs = generate_kwargs
 
-                # set input_ids to None to allow empty prompt
-                if inputs["input_ids"].shape[-1] == 0:
-                    inputs["input_ids"] = None
-                    inputs["attention_mask"] = None
+        result = super().__call__(text_inputs)
+        return result
+        if len(result) == 1:
+            return result[0]
+        return result
 
-                if self.framework == "pt" and inputs["input_ids"] is not None:
-                    inputs = self.ensure_tensor_on_device(**inputs)
+    def preprocess(self, prompt_text):
+        if self.prefix is None and self.model.__class__.__name__ in [
+            "XLNetLMHeadModel",
+            "TransfoXLLMHeadModel",
+            "TFXLNetLMHeadModel",
+            "TFTransfoXLLMHeadModel",
+        ]:
+            # For XLNet and TransformerXL we add an article to the prompt to give more state to the model.
+            self.prefix = self.XL_PREFIX
 
-                input_ids = inputs["input_ids"]
+        if self.prefix:
+            prefix_inputs = self.tokenizer(
+                self.prefix, padding=False, add_special_tokens=False, return_tensors=self.framework
+            )
+            prefix_length = prefix_inputs["input_ids"].shape[-1]
+            if self.generate_kwargs.get("max_length", None) is not None:
+                self.generate_kwargs["max_length"] += prefix_length
+            if self.generate_kwargs.get("min_length", None) is not None:
+                self.generate_kwargs["min_length"] += prefix_length
+        prefix = self.prefix or ""
+        inputs = self.tokenizer(
+            prefix + prompt_text, padding=False, add_special_tokens=False, return_tensors=self.framework
+        )
+        inputs["prompt_text"] = prompt_text
+        return inputs
 
-                # Ensure that batch size = 1 (batch generation not allowed for now)
-                assert (
-                    input_ids is None or input_ids.shape[0] == 1
-                ), "Batch generation is currently not supported. See https://github.com/huggingface/transformers/issues/3021 for more information."
+    def forward(self, model_inputs):
+        if self.framework == "pt":
+            model_inputs = self.ensure_tensor_on_device(**model_inputs)
+        input_ids = model_inputs["input_ids"]
+        prompt_text = model_inputs.pop("prompt_text")
+        generated_sequence = self.model.generate(input_ids=input_ids, **self.generate_kwargs)  # BS x SL
+        return {"generated_sequence": generated_sequence, "input_ids": input_ids, "prompt_text": prompt_text}
 
-                output_sequences = self.model.generate(input_ids=input_ids, **generate_kwargs)  # BS x SL
+    def postprocess(self, model_outputs):
+        generated_sequence = model_outputs["generated_sequence"]
+        input_ids = model_outputs["input_ids"]
+        prompt_text = model_outputs["prompt_text"]
+        if self.framework == "pt" and generated_sequence is not None:
+            generated_sequence = generated_sequence.cpu()
+        generated_sequence = generated_sequence.numpy().tolist()
+        if self.return_type == ReturnType.TENSORS:
+            record = {"generated_token_ids": generated_sequence}
+        elif self.return_type in {ReturnType.NEW_TEXT, ReturnType.FULL_TEXT}:
+            # Decode text
+            record = []
+            for sequence in generated_sequence:
+                text = self.tokenizer.decode(
+                    sequence,
+                    skip_special_tokens=True,
+                    clean_up_tokenization_spaces=self.clean_up_tokenization_spaces,
+                )
 
-            result = []
-            for generated_sequence in output_sequences:
-                if self.framework == "pt" and generated_sequence is not None:
-                    generated_sequence = generated_sequence.cpu()
-                generated_sequence = generated_sequence.numpy().tolist()
-                record = {}
-                if return_tensors:
-                    record["generated_token_ids"] = generated_sequence
-                if return_text:
-                    # Decode text
-                    text = self.tokenizer.decode(
-                        generated_sequence,
-                        skip_special_tokens=True,
-                        clean_up_tokenization_spaces=clean_up_tokenization_spaces,
+                # Remove PADDING prompt of the sequence if XLNet or Transfo-XL model is used
+                if input_ids is None:
+                    prompt_length = 0
+                else:
+                    prompt_length = len(
+                        self.tokenizer.decode(
+                            input_ids[0],
+                            skip_special_tokens=True,
+                            clean_up_tokenization_spaces=self.clean_up_tokenization_spaces,
+                        )
                     )
 
-                    # Remove PADDING prompt of the sequence if XLNet or Transfo-XL model is used
-                    if input_ids is None:
-                        prompt_length = 0
-                    else:
-                        prompt_length = len(
-                            self.tokenizer.decode(
-                                input_ids[0],
-                                skip_special_tokens=True,
-                                clean_up_tokenization_spaces=clean_up_tokenization_spaces,
-                            )
-                        )
+                if self.return_type == ReturnType.FULL_TEXT:
+                    all_text = prompt_text + text[prompt_length:]
+                else:
+                    all_text = text[prompt_length:]
 
-                    if return_full_text:
-                        all_text = prompt_text + text[prompt_length:]
-                    else:
-                        all_text = text[prompt_length:]
+                item = {"generated_text": all_text}
+                record.append(item)
 
-                    record["generated_text"] = all_text
-
-                result.append(record)
-            results += [result]
-
-        if len(results) == 1:
-            return results[0]
-
-        return results
+        return record

@@ -17,8 +17,6 @@ if is_vision_available():
     from PIL import Image
 
 if is_torch_available():
-    import torch
-
     from ..models.auto.modeling_auto import MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING
 
 logger = logging.get_logger(__name__)
@@ -102,34 +100,24 @@ class ImageClassificationPipeline(Pipeline):
             - **label** (:obj:`str`) -- The label identified by the model.
             - **score** (:obj:`int`) -- The score attributed by the model for that label.
         """
-        is_batched = isinstance(images, list)
-
-        if not is_batched:
-            images = [images]
-
-        images = [self.load_image(image) for image in images]
-
         if top_k > self.model.config.num_labels:
             top_k = self.model.config.num_labels
+        self.top_k = top_k
+        return super().__call__(images)
 
-        with torch.no_grad():
-            inputs = self.feature_extractor(images=images, return_tensors="pt")
-            outputs = self.model(**inputs)
+    def preprocess(self, image):
+        image = self.load_image(image)
+        model_inputs = self.feature_extractor(images=image, return_tensors="pt")
+        return model_inputs
 
-            probs = outputs.logits.softmax(-1)
-            scores, ids = probs.topk(top_k)
+    def forward(self, model_inputs):
+        model_outputs = self.model(**model_inputs)
+        return model_outputs
 
-            scores = scores.tolist()
-            ids = ids.tolist()
+    def postprocess(self, model_outputs):
+        probs = model_outputs.logits.softmax(-1)[0]
+        scores, ids = probs.topk(self.top_k)
 
-        if not is_batched:
-            scores, ids = scores[0], ids[0]
-            labels = [{"score": score, "label": self.model.config.id2label[_id]} for score, _id in zip(scores, ids)]
-        else:
-            labels = []
-            for scores, ids in zip(scores, ids):
-                labels.append(
-                    [{"score": score, "label": self.model.config.id2label[_id]} for score, _id in zip(scores, ids)]
-                )
-
-        return labels
+        scores = scores.tolist()
+        ids = ids.tolist()
+        return [{"score": score, "label": self.model.config.id2label[_id]} for score, _id in zip(scores, ids)]

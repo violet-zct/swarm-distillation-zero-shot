@@ -123,6 +123,9 @@ class AutomaticSpeechRecognitionPipeline(Pipeline):
 
             - **text** (:obj:`str`) -- The recognized text.
         """
+        return super().__call__(inputs)
+
+    def preprocess(self, inputs):
         if isinstance(inputs, str):
             with open(inputs, "rb") as f:
                 inputs = f.read()
@@ -136,17 +139,21 @@ class AutomaticSpeechRecognitionPipeline(Pipeline):
         processed = self.feature_extractor(
             inputs, sampling_rate=self.feature_extractor.sampling_rate, return_tensors="pt"
         )
-        processed = self.ensure_tensor_on_device(**processed)
+        return processed
 
+    def forward(self, model_inputs):
+        model_inputs = self.ensure_tensor_on_device(**model_inputs)
         name = self.model.__class__.__name__
         if name.endswith("ForConditionalGeneration"):
-            input_ids = processed["input_features"]
+            input_ids = model_inputs["input_features"]
             tokens = self.model.generate(input_ids=input_ids)
             tokens = tokens.squeeze(0)
         elif name.endswith("ForCTC"):
-            outputs = self.model(**processed)
+            outputs = self.model(**model_inputs)
             tokens = outputs.logits.squeeze(0).argmax(dim=-1)
+        return tokens
 
+    def postprocess(self, model_outputs):
         skip_special_tokens = False if "CTC" in self.tokenizer.__class__.__name__ else True
-        recognized_string = self.tokenizer.decode(tokens, skip_special_tokens=skip_special_tokens)
+        recognized_string = self.tokenizer.decode(model_outputs, skip_special_tokens=skip_special_tokens)
         return {"text": recognized_string}

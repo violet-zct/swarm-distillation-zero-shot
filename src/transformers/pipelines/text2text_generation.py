@@ -1,3 +1,4 @@
+import enum
 from typing import Optional
 
 from ..file_utils import add_end_docstrings, is_tf_available, is_torch_available
@@ -15,6 +16,11 @@ if is_torch_available():
     from ..models.auto.modeling_auto import MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING
 
 logger = logging.get_logger(__name__)
+
+
+class ReturnType(enum.Enum):
+    TENSORS = 0
+    TEXT = 1
 
 
 @add_end_docstrings(PIPELINE_INIT_ARGS)
@@ -71,7 +77,7 @@ class Text2TextGenerationPipeline(Pipeline):
             raise ValueError(
                 f" `args[0]`: {args[0]} have the wrong format. The should be either of type `str` or type `list`"
             )
-        inputs = super()._parse_and_tokenize(*args, padding=padding, truncation=truncation)
+        inputs = self.tokenizer(*args, padding=padding, truncation=truncation, return_tensors=self.framework)
         # This is produced by tokenizers but is an invalid generate kwargs
         if "token_type_ids" in inputs:
             del inputs["token_type_ids"]
@@ -82,6 +88,7 @@ class Text2TextGenerationPipeline(Pipeline):
         *args,
         return_tensors=False,
         return_text=True,
+        return_type=ReturnType.TEXT,
         clean_up_tokenization_spaces=False,
         truncation=TruncationStrategy.DO_NOT_TRUNCATE,
         **generate_kwargs
@@ -113,47 +120,58 @@ class Text2TextGenerationPipeline(Pipeline):
             - **generated_token_ids** (:obj:`torch.Tensor` or :obj:`tf.Tensor`, present when ``return_tensors=True``)
               -- The token ids of the generated text.
         """
-        assert return_tensors or return_text, "You must specify return_tensors=True or return_text=True"
-
-        with self.device_placement():
-            inputs = self._parse_and_tokenize(*args, truncation=truncation)
-            return self._generate(inputs, return_tensors, return_text, clean_up_tokenization_spaces, generate_kwargs)
-
-    def _generate(
-        self, inputs, return_tensors: bool, return_text: bool, clean_up_tokenization_spaces: bool, generate_kwargs
-    ):
-        if self.framework == "pt":
-            inputs = self.ensure_tensor_on_device(**inputs)
-            input_length = inputs["input_ids"].shape[-1]
-        elif self.framework == "tf":
-            input_length = tf.shape(inputs["input_ids"])[-1].numpy()
-
+        # assert return_tensors or return_text, "You must specify return_tensors=True or return_text=True"
+        if return_tensors is True:
+            return_type = ReturnType.TENSORS
         min_length = generate_kwargs.get(
             "min_length", self.model.config.min_length if self.min_length is None else self.min_length
         )
         max_length = generate_kwargs.get(
             "max_length", self.model.config.max_length if self.max_length is None else self.max_length
         )
-        self.check_inputs(input_length, min_length, max_length)
 
-        generate_kwargs.update(inputs)
+        self.return_type = return_type
+        self.truncation = truncation
+        self.max_length = max_length
+        self.min_length = min_length
+        self.clean_up_tokenization_spaces = clean_up_tokenization_spaces
 
-        generations = self.model.generate(
-            **generate_kwargs,
+        result = super().__call__(args)
+        if isinstance(result, dict):
+            return [result]
+        return result
+
+    def preprocess(self, inputs):
+        inputs = self._parse_and_tokenize(*inputs, truncation=self.truncation)
+        return inputs
+
+    def forward(self, model_inputs):
+        if self.framework == "pt":
+            model_inputs = self.ensure_tensor_on_device(**model_inputs)
+            input_length = model_inputs["input_ids"].shape[-1]
+        elif self.framework == "tf":
+            input_length = tf.shape(model_inputs["input_ids"])[-1].numpy()
+
+        self.check_inputs(input_length, self.min_length, self.max_length)
+        model_inputs["max_length"] = self.max_length
+        output_ids = self.model.generate(
+            **model_inputs,
         )
-        results = []
-        for generation in generations:
-            record = {}
-            if return_tensors:
-                record[f"{self.return_name}_token_ids"] = generation
-            if return_text:
-                record[f"{self.return_name}_text"] = self.tokenizer.decode(
-                    generation,
+        return {"output_ids": output_ids}
+
+    def postprocess(self, model_outputs):
+        record = {}
+        if self.return_type == ReturnType.TENSORS:
+            record = {f"{self.return_name}_token_ids": model_outputs}
+        elif self.return_type == ReturnType.TEXT:
+            record = {
+                f"{self.return_name}_text": self.tokenizer.decode(
+                    model_outputs["output_ids"][0],
                     skip_special_tokens=True,
-                    clean_up_tokenization_spaces=clean_up_tokenization_spaces,
+                    clean_up_tokenization_spaces=self.clean_up_tokenization_spaces,
                 )
-            results.append(record)
-        return results
+            }
+        return record
 
 
 @add_end_docstrings(PIPELINE_INIT_ARGS)
@@ -271,10 +289,14 @@ class TranslationPipeline(Text2TextGenerationPipeline):
             )
         return True
 
-    def _parse_and_tokenize(self, *args, src_lang, tgt_lang, truncation):
+    def _parse_and_tokenize(self, *args, truncation):
         if getattr(self.tokenizer, "_build_translation_inputs", None):
             return self.tokenizer._build_translation_inputs(
-                *args, return_tensors=self.framework, src_lang=src_lang, tgt_lang=tgt_lang, truncation=truncation
+                *args,
+                return_tensors=self.framework,
+                src_lang=self.src_lang,
+                tgt_lang=self.tgt_lang,
+                truncation=truncation,
             )
         else:
             return super()._parse_and_tokenize(*args, truncation=truncation)
@@ -320,9 +342,15 @@ class TranslationPipeline(Text2TextGenerationPipeline):
               -- The token ids of the translation.
         """
         assert return_tensors or return_text, "You must specify return_tensors=True or return_text=True"
-        src_lang = src_lang if src_lang is not None else self.src_lang
-        tgt_lang = tgt_lang if tgt_lang is not None else self.tgt_lang
-
-        with self.device_placement():
-            inputs = self._parse_and_tokenize(*args, truncation=truncation, src_lang=src_lang, tgt_lang=tgt_lang)
-            return self._generate(inputs, return_tensors, return_text, clean_up_tokenization_spaces, generate_kwargs)
+        if src_lang is not None:
+            self.src_lang = src_lang
+        if tgt_lang is not None:
+            self.tgt_lang = tgt_lang
+        return super().__call__(
+            *args,
+            return_tensors=return_tensors,
+            return_text=return_text,
+            clean_up_tokenization_spaces=clean_up_tokenization_spaces,
+            truncation=truncation,
+            **generate_kwargs,
+        )

@@ -15,12 +15,9 @@ if TYPE_CHECKING:
     from ..modeling_utils import PreTrainedModel
 
 if is_tf_available():
-
     from ..models.auto.modeling_tf_auto import TF_MODEL_FOR_TOKEN_CLASSIFICATION_MAPPING
 
 if is_torch_available():
-    import torch
-
     from ..models.auto.modeling_auto import MODEL_FOR_TOKEN_CLASSIFICATION_MAPPING
 
 
@@ -198,57 +195,64 @@ class TokenClassificationPipeline(Pipeline):
         """
 
         _inputs, offset_mappings = self._args_parser(inputs, **kwargs)
+        self.offset_mappings = offset_mappings
 
-        answers = []
+        return super().__call__(inputs)
 
-        for i, sentence in enumerate(_inputs):
+    def preprocess(self, sentence):
+        truncation = True if self.tokenizer.model_max_length and self.tokenizer.model_max_length > 0 else False
+        model_inputs = self.tokenizer(
+            sentence,
+            return_attention_mask=False,
+            return_tensors=self.framework,
+            truncation=truncation,
+            return_special_tokens_mask=True,
+            return_offsets_mapping=self.tokenizer.is_fast,
+        )
+        if self.offset_mappings:
+            offset_mapping = self.offset_mappings[0]
+            model_inputs["offset_mapping"] = offset_mapping
 
-            # Manage correct placement of the tensors
-            with self.device_placement():
+        model_inputs["sentence"] = sentence
 
-                truncation = True if self.tokenizer.model_max_length and self.tokenizer.model_max_length > 0 else False
-                tokens = self.tokenizer(
-                    sentence,
-                    return_attention_mask=False,
-                    return_tensors=self.framework,
-                    truncation=truncation,
-                    return_special_tokens_mask=True,
-                    return_offsets_mapping=self.tokenizer.is_fast,
-                )
-                if self.tokenizer.is_fast:
-                    offset_mapping = tokens.pop("offset_mapping").cpu().numpy()[0]
-                elif offset_mappings:
-                    offset_mapping = offset_mappings[i]
-                else:
-                    offset_mapping = None
+        return model_inputs
 
-                special_tokens_mask = tokens.pop("special_tokens_mask").cpu().numpy()[0]
+    def forward(self, model_inputs):
+        # Forward
+        special_tokens_mask = model_inputs.pop("special_tokens_mask")
+        offset_mapping = model_inputs.pop("offset_mapping")
+        sentence = model_inputs.pop("sentence")
+        if self.framework == "tf":
+            outputs = self.model(model_inputs.data)[0][0].numpy()
+        else:
+            model_inputs = self.ensure_tensor_on_device(**model_inputs)
+            outputs = self.model(**model_inputs)[0][0].cpu().numpy()
+        return {
+            "outputs": outputs,
+            "special_tokens_mask": special_tokens_mask,
+            "offset_mapping": offset_mapping,
+            "sentence": sentence,
+            **model_inputs,
+        }
 
-                # Forward
-                if self.framework == "tf":
-                    entities = self.model(tokens.data)[0][0].numpy()
-                    input_ids = tokens["input_ids"].numpy()[0]
-                else:
-                    with torch.no_grad():
-                        tokens = self.ensure_tensor_on_device(**tokens)
-                        entities = self.model(**tokens)[0][0].cpu().numpy()
-                        input_ids = tokens["input_ids"].cpu().numpy()[0]
+    def postprocess(self, model_outputs):
+        outputs = model_outputs["outputs"]
+        sentence = model_outputs["sentence"]
+        input_ids = model_outputs["input_ids"][0]
+        offset_mapping = model_outputs["offset_mapping"][0]
+        special_tokens_mask = model_outputs["special_tokens_mask"][0].numpy()
 
-            scores = np.exp(entities) / np.exp(entities).sum(-1, keepdims=True)
-            pre_entities = self.gather_pre_entities(sentence, input_ids, scores, offset_mapping, special_tokens_mask)
-            grouped_entities = self.aggregate(pre_entities, self.aggregation_strategy)
-            # Filter anything that is in self.ignore_labels
-            entities = [
-                entity
-                for entity in grouped_entities
-                if entity.get("entity", None) not in self.ignore_labels
-                and entity.get("entity_group", None) not in self.ignore_labels
-            ]
-            answers.append(entities)
-
-        if len(answers) == 1:
-            return answers[0]
-        return answers
+        scores = np.exp(outputs) / np.exp(outputs).sum(-1, keepdims=True)
+        pre_entities = self.gather_pre_entities(sentence, input_ids, scores, offset_mapping, special_tokens_mask)
+        grouped_entities = self.aggregate(pre_entities, self.aggregation_strategy)
+        # Filter anything that is in self.ignore_labels
+        entities = [
+            entity
+            for entity in grouped_entities
+            if entity.get("entity", None) not in self.ignore_labels
+            and entity.get("entity_group", None) not in self.ignore_labels
+        ]
+        return entities
 
     def gather_pre_entities(
         self,
@@ -296,8 +300,8 @@ class TokenClassificationPipeline(Pipeline):
             pre_entity = {
                 "word": word,
                 "scores": token_scores,
-                "start": start_ind,
-                "end": end_ind,
+                "start": start_ind.item(),
+                "end": end_ind.item(),
                 "index": idx,
                 "is_subword": is_subword,
             }

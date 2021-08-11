@@ -1,9 +1,9 @@
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Dict, Optional, Union
 
 from ..feature_extraction_utils import PreTrainedFeatureExtractor
 from ..modelcard import ModelCard
 from ..tokenization_utils import PreTrainedTokenizer
-from .base import ArgumentHandler, Pipeline
+from .base import ArgumentHandler, GenericTensor, Pipeline
 
 
 if TYPE_CHECKING:
@@ -72,6 +72,23 @@ class FeatureExtractionPipeline(Pipeline):
             task=task,
         )
 
+    def preprocess(self, inputs, return_tensors=None, **preprocess_parameters) -> Dict[str, GenericTensor]:
+        if return_tensors is None:
+            return_tensors = self.framework
+        model_inputs = self.tokenizer(inputs, return_tensors=return_tensors)
+        return model_inputs
+
+    def forward(self, model_inputs):
+        model_outputs = self.model(**model_inputs)
+        return model_outputs
+
+    def postprocess(self, model_outputs):
+        # [0] is the first available tensor, logits or last_hidden_state.
+        if self.framework == "pt":
+            return model_outputs[0].tolist()
+        elif self.framework == "tf":
+            return model_outputs[0].numpy().tolist()
+
     def __call__(self, *args, **kwargs):
         """
         Extract the features of the input(s).
@@ -82,10 +99,4 @@ class FeatureExtractionPipeline(Pipeline):
         Return:
             A nested list of :obj:`float`: The features computed by the model.
         """
-        results = super().__call__(*args, **kwargs)
-        if isinstance(results, list):
-            # Sequential run
-            results = [r.tolist() for r in results]
-        else:
-            results = results.tolist()
-        return results
+        return super().__call__(*args, **kwargs)
