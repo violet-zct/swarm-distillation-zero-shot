@@ -53,6 +53,7 @@ jobs:
       - name: Git init
         run: |
           /usr/bin/git init
+          /usr/bin/git fetch origin
 
       - name: Git in path?
         run: |
@@ -173,6 +174,7 @@ jobs:
       - name: Git init
         run: |
           /usr/bin/git init
+          /usr/bin/git fetch origin
 
       - name: Git in path?
         run: |
