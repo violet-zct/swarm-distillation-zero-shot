@@ -48,6 +48,9 @@ jobs:
           python -c "import torch; print('CuDNN version:', torch.backends.cudnn.version())"
           python -c "import torch; print('Number of GPUs available:', torch.cuda.device_count())"
 
+      - name: Git init
+        run: |
+          git init
 
       - name: Git in path?
         run: |
