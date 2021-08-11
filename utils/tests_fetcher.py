@@ -100,7 +100,7 @@ def get_modified_python_files(diff_with_last_commit=False):
             print(f"Branching commit: {commit}")
         return get_diff(repo, repo.head.commit, branching_commits)
     else:
-        print(f"Master is at {repo.head.commit}")
+        print(f"Branch is at {repo.head.commit}")
         parent_commits = repo.head.commit.parents
         for commit in parent_commits:
             print(f"Parent commit: {commit}")
@@ -453,8 +453,9 @@ if __name__ == "__main__":
             infer_tests_to_run(args.output_file, diff_with_last_commit=diff_with_last_commit, filters=args.filters)
         except Exception as e:
             print(f"\nError when trying to grab the relevant tests: {e}\n\nRunning all tests.")
-            with open(args.output_file, "w", encoding="utf-8") as f:
-                if args.filters is None:
-                    f.write("./tests/")
-                else:
-                    f.write(" ".join(args.filters))
+            raise e
+            #with open(args.output_file, "w", encoding="utf-8") as f:
+            #    if args.filters is None:
+            #        f.write("./tests/")
+            #    else:
+            #        f.write(" ".join(args.filters))
