@@ -37,7 +37,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          apt install -y software-properties-common && apt -y update && add-apt-repository -y ppa:git-core/ppa && apt -y update && apt install -y git
+          apt -y update && apt install -y software-properties-common && apt -y update && add-apt-repository -y ppa:git-core/ppa && apt -y update && apt install -y git
           apt install -y libsndfile1-dev
           pip install --upgrade pip
           pip install .[sklearn,testing,onnxruntime,sentencepiece,speech,vision,timm]
