@@ -28,11 +28,6 @@ jobs:
       image: pytorch/pytorch:1.9.0-cuda11.1-cudnn8-runtime
       options: --gpus 0 --shm-size "16gb" --ipc host -v /mnt/cache/.cache/huggingface:/mnt/cache/
     steps:
-      - name: Launcher docker
-        uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
-
       - name: NVIDIA-SMI
         run: |
           nvidia-smi
@@ -42,6 +37,11 @@ jobs:
           apt -y update && apt install -y libsndfile1-dev git
           pip install --upgrade pip
           pip install .[sklearn,testing,onnxruntime,sentencepiece,speech,vision,timm]
+      
+      - name: Launcher docker
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
 
       - name: Are GPUs recognized by our DL frameworks
         run: |
