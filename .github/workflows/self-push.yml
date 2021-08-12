@@ -28,6 +28,13 @@ jobs:
       image: pytorch/pytorch:1.9.0-cuda11.1-cudnn8-runtime
       options: --gpus 0 --shm-size "16gb" --ipc host -v /mnt/cache/.cache/huggingface:/mnt/cache/
     steps:
+      - name: Install dependencies
+        run: |
+          apt -y update && apt install -y software-properties-common && apt -y update && add-apt-repository -y ppa:git-core/ppa && apt -y update && apt install -y git
+          apt install -y libsndfile1-dev
+          pip install --upgrade pip
+          pip install .[sklearn,testing,onnxruntime,sentencepiece,speech,vision,timm]
+
       - name: Launcher docker
         uses: actions/checkout@v2
 
@@ -35,13 +42,6 @@ jobs:
         run: |
           nvidia-smi
 
-      - name: Install dependencies
-        run: |
-          apt -y update && apt install -y software-properties-common && apt -y update && add-apt-repository -y ppa:git-core/ppa && apt -y update && apt install -y git
-          apt install -y libsndfile1-dev
-          pip install --upgrade pip
-          pip install .[sklearn,testing,onnxruntime,sentencepiece,speech,vision,timm]
-      
 #      - name: Re-clone repo
 #        run: |
 #          cd ..
