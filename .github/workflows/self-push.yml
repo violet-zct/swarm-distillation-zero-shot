@@ -58,6 +58,8 @@ jobs:
       - name: Git in path?
         run: |
           which git
+          git --version
+          ls
           git branch
 
       - name: Fetch the tests to run
