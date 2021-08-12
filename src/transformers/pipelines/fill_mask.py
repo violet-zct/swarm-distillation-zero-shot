@@ -82,7 +82,6 @@ class FillMaskPipeline(Pipeline):
         )
 
         self.check_model_type(TF_MODEL_WITH_LM_HEAD_MAPPING if self.framework == "tf" else MODEL_FOR_MASKED_LM_MAPPING)
-        raise ValueError("Ok")
         self.top_k = top_k
         self.targets = targets
         if self.tokenizer.mask_token_id is None:
