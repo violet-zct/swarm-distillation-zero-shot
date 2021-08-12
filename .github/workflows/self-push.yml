@@ -41,12 +41,13 @@ jobs:
           pip install --upgrade pip
           pip install .[sklearn,testing,onnxruntime,sentencepiece,speech,vision,timm]
       
-      - name: Re-clone repo
-        run: |
-          cd ..
-          git clone https://github.com/huggingface/transformers.git
-          cd transformers
-          git checkout ci-debug
+#      - name: Re-clone repo
+#        run: |
+#          cd ..
+#          rm -rf transformers
+#          git clone https://github.com/huggingface/transformers.git
+#          cd transformers
+#          git checkout ci-debug
 
       - name: Are GPUs recognized by our DL frameworks
         run: |
