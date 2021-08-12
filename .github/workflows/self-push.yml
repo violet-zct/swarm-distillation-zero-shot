@@ -28,6 +28,9 @@ jobs:
       image: pytorch/pytorch:1.9.0-cuda11.1-cudnn8-runtime
       options: --gpus 0 --shm-size "16gb" --ipc host -v /mnt/cache/.cache/huggingface:/mnt/cache/
     steps:
+      - name: Launcher docker
+        uses: actions/checkout@v2
+
       - name: NVIDIA-SMI
         run: |
           nvidia-smi
@@ -38,10 +41,12 @@ jobs:
           pip install --upgrade pip
           pip install .[sklearn,testing,onnxruntime,sentencepiece,speech,vision,timm]
       
-      - name: Launcher docker
-        uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
+      - name: Re-clone repo
+        run: |
+          cd ..
+          git clone https://github.com/huggingface/transformers.git
+          cd transformers
+          git checkout ci-debug
 
       - name: Are GPUs recognized by our DL frameworks
         run: |
