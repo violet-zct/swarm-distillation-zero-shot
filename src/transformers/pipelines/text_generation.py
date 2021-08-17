@@ -140,6 +140,15 @@ class TextGenerationPipeline(Pipeline):
         inputs = self.tokenizer(
             prefix + prompt_text, padding=False, add_special_tokens=False, return_tensors=self.framework
         )
+        max_new_tokens = self.generate_kwargs.get("max_new_tokens", None)
+        if max_new_tokens:
+            n_positions = self.model.config.max_position_embeddings - max_new_tokens
+            self.generate_kwargs["max_length"] = n_positions + max_new_tokens
+            if inputs["input_ids"].shape[-1] > n_positions:
+
+                inputs["input_ids"] = inputs["input_ids"][:, -n_positions:]
+                inputs["attention_mask"] = inputs["attention_mask"][:, -n_positions:]
+
         inputs["prompt_text"] = prompt_text
         return inputs
 
