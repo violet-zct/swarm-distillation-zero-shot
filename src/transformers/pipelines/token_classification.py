@@ -1,18 +1,12 @@
 import warnings
-from typing import TYPE_CHECKING, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 
 from ..file_utils import ExplicitEnum, add_end_docstrings, is_tf_available, is_torch_available
-from ..modelcard import ModelCard
 from ..models.bert.tokenization_bert import BasicTokenizer
-from ..tokenization_utils import PreTrainedTokenizer
 from .base import PIPELINE_INIT_ARGS, ArgumentHandler, Pipeline
 
-
-if TYPE_CHECKING:
-    from ..modeling_tf_utils import TFPreTrainedModel
-    from ..modeling_utils import PreTrainedModel
 
 if is_tf_available():
     from ..models.auto.modeling_tf_auto import TF_MODEL_FOR_TOKEN_CLASSIFICATION_MAPPING
@@ -101,31 +95,10 @@ class TokenClassificationPipeline(Pipeline):
 
     default_input_names = "sequences"
 
-    def __init__(
-        self,
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        tokenizer: PreTrainedTokenizer,
-        modelcard: Optional[ModelCard] = None,
-        framework: Optional[str] = None,
-        args_parser: ArgumentHandler = TokenClassificationArgumentHandler(),
-        device: int = -1,
-        binary_output: bool = False,
-        ignore_labels=["O"],
-        task: str = "",
-        grouped_entities: Optional[bool] = None,
-        ignore_subwords: Optional[bool] = None,
-        aggregation_strategy: Optional[AggregationStrategy] = None,
-    ):
-        super().__init__(
-            model=model,
-            tokenizer=tokenizer,
-            modelcard=modelcard,
-            framework=framework,
-            device=device,
-            binary_output=binary_output,
-            task=task,
-        )
-
+    def __init__(self, args_parser=TokenClassificationArgumentHandler(), *args, **kwargs):
+        self.ignore_labels = ["O"]
+        self.aggregation_strategy = AggregationStrategy.NONE
+        super().__init__(*args, **kwargs)
         self.check_model_type(
             TF_MODEL_FOR_TOKEN_CLASSIFICATION_MAPPING
             if self.framework == "tf"
@@ -134,40 +107,46 @@ class TokenClassificationPipeline(Pipeline):
 
         self._basic_tokenizer = BasicTokenizer(do_lower_case=False)
         self._args_parser = args_parser
-        self.ignore_labels = ignore_labels
 
-        if aggregation_strategy is None:
-            aggregation_strategy = AggregationStrategy.NONE
-            if grouped_entities is not None or ignore_subwords is not None:
+    def set_parameters(
+        self,
+        ignore_labels=None,
+        grouped_entities: Optional[bool] = None,
+        ignore_subwords: Optional[bool] = None,
+        aggregation_strategy: Optional[AggregationStrategy] = None,
+    ):
+        if grouped_entities is not None or ignore_subwords is not None:
+            if grouped_entities and ignore_subwords:
+                aggregation_strategy = AggregationStrategy.FIRST
+            elif grouped_entities and not ignore_subwords:
+                aggregation_strategy = AggregationStrategy.SIMPLE
+            else:
+                aggregation_strategy = AggregationStrategy.NONE
 
-                if grouped_entities and ignore_subwords:
-                    aggregation_strategy = AggregationStrategy.FIRST
-                elif grouped_entities and not ignore_subwords:
-                    aggregation_strategy = AggregationStrategy.SIMPLE
-                else:
-                    aggregation_strategy = AggregationStrategy.NONE
+            if grouped_entities is not None:
+                warnings.warn(
+                    f'`grouped_entities` is deprecated and will be removed in version v5.0.0, defaulted to `aggregation_strategy="{aggregation_strategy}"` instead.'
+                )
+            if ignore_subwords is not None:
+                warnings.warn(
+                    f'`ignore_subwords` is deprecated and will be removed in version v5.0.0, defaulted to `aggregation_strategy="{aggregation_strategy}"` instead.'
+                )
 
-                if grouped_entities is not None:
-                    warnings.warn(
-                        f'`grouped_entities` is deprecated and will be removed in version v5.0.0, defaulted to `aggregation_strategy="{aggregation_strategy}"` instead.'
-                    )
-                if ignore_subwords is not None:
-                    warnings.warn(
-                        f'`ignore_subwords` is deprecated and will be removed in version v5.0.0, defaulted to `aggregation_strategy="{aggregation_strategy}"` instead.'
-                    )
-        if isinstance(aggregation_strategy, str):
-            aggregation_strategy = AggregationStrategy[aggregation_strategy.upper()]
-
-        if (
-            aggregation_strategy in {AggregationStrategy.FIRST, AggregationStrategy.MAX, AggregationStrategy.AVERAGE}
-            and not self.tokenizer.is_fast
-        ):
-            raise ValueError(
-                "Slow tokenizers cannot handle subwords. Please set the `aggregation_strategy` option"
-                'to `"simple"` or use a fast tokenizer.'
-            )
-
-        self.aggregation_strategy = aggregation_strategy
+        if aggregation_strategy is not None:
+            if isinstance(aggregation_strategy, str):
+                aggregation_strategy = AggregationStrategy[aggregation_strategy.upper()]
+            if (
+                aggregation_strategy
+                in {AggregationStrategy.FIRST, AggregationStrategy.MAX, AggregationStrategy.AVERAGE}
+                and not self.tokenizer.is_fast
+            ):
+                raise ValueError(
+                    "Slow tokenizers cannot handle subwords. Please set the `aggregation_strategy` option"
+                    'to `"simple"` or use a fast tokenizer.'
+                )
+            self.aggregation_strategy = aggregation_strategy
+        if ignore_labels is not None:
+            self.ignore_labels = ignore_labels
 
     def __call__(self, inputs: Union[str, List[str]], **kwargs):
         """
@@ -197,7 +176,7 @@ class TokenClassificationPipeline(Pipeline):
         _inputs, offset_mappings = self._args_parser(inputs, **kwargs)
         self.offset_mappings = offset_mappings
 
-        return super().__call__(inputs)
+        return super().__call__(inputs, **kwargs)
 
     def preprocess(self, sentence):
         truncation = True if self.tokenizer.model_max_length and self.tokenizer.model_max_length > 0 else False
@@ -274,6 +253,9 @@ class TokenClassificationPipeline(Pipeline):
             word = self.tokenizer.convert_ids_to_tokens(int(input_ids[idx]))
             if offset_mapping is not None:
                 start_ind, end_ind = offset_mapping[idx]
+                if self.framework == "pt":
+                    start_ind = start_ind.item()
+                    end_ind = end_ind.item()
                 word_ref = sentence[start_ind:end_ind]
                 if getattr(self.tokenizer._tokenizer.model, "continuing_subword_prefix", None):
                     # This is a BPE, word aware tokenizer, there is a correct way
@@ -300,8 +282,8 @@ class TokenClassificationPipeline(Pipeline):
             pre_entity = {
                 "word": word,
                 "scores": token_scores,
-                "start": start_ind.item(),
-                "end": end_ind.item(),
+                "start": start_ind,
+                "end": end_ind,
                 "index": idx,
                 "is_subword": is_subword,
             }

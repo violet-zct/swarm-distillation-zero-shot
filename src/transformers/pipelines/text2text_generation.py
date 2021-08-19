@@ -43,17 +43,45 @@ class Text2TextGenerationPipeline(Pipeline):
     # Used in the return key of the pipeline.
     return_name = "generated"
 
-    def __init__(self, *args, num_beams=None, min_length=None, max_length=None, **kwargs):
+    def __init__(self, *args, **kwargs):
+        self.return_type = ReturnType.TEXT
+        self.truncation = TruncationStrategy.DO_NOT_TRUNCATE
+        self.clean_up_tokenization_spaces = False
         super().__init__(*args, **kwargs)
+        self.min_length = kwargs.get("min_length", self.model.config.min_length)
+        self.max_length = kwargs.get("max_length", self.model.config.max_length)
 
         self.check_model_type(
             TF_MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING
             if self.framework == "tf"
             else MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING
         )
-        self.num_beams = num_beams
-        self.min_length = min_length
-        self.max_length = max_length
+
+    def set_parameters(
+        self,
+        return_tensors=None,
+        return_text=None,
+        return_type=None,
+        clean_up_tokenization_spaces=None,
+        truncation=None,
+        **generate_kwargs
+    ):
+        # assert return_tensors or return_text, "You must specify return_tensors=True or return_text=True"
+        if return_tensors is not None and return_type is None:
+            return_type = ReturnType.TENSORS if return_tensors else ReturnType.TEXT
+        if "min_length" in generate_kwargs:
+            self.min_length = generate_kwargs["min_length"]
+        if "max_length" in generate_kwargs:
+            self.max_length = generate_kwargs["max_length"]
+
+        if return_type is not None:
+            self.return_type = return_type
+        if truncation is not None:
+            self.truncation = truncation
+        if clean_up_tokenization_spaces is not None:
+            self.clean_up_tokenization_spaces = clean_up_tokenization_spaces
+        if "num_beams" in generate_kwargs:
+            self.num_beams = generate_kwargs["num_beams"]
 
     def check_inputs(self, input_length: int, min_length: int, max_length: int):
         """
@@ -83,16 +111,7 @@ class Text2TextGenerationPipeline(Pipeline):
             del inputs["token_type_ids"]
         return inputs
 
-    def __call__(
-        self,
-        *args,
-        return_tensors=False,
-        return_text=True,
-        return_type=ReturnType.TEXT,
-        clean_up_tokenization_spaces=False,
-        truncation=TruncationStrategy.DO_NOT_TRUNCATE,
-        **generate_kwargs
-    ):
+    def __call__(self, *args, **kwargs):
         r"""
         Generate the output text(s) using text(s) given as inputs.
 
@@ -120,23 +139,8 @@ class Text2TextGenerationPipeline(Pipeline):
             - **generated_token_ids** (:obj:`torch.Tensor` or :obj:`tf.Tensor`, present when ``return_tensors=True``)
               -- The token ids of the generated text.
         """
-        # assert return_tensors or return_text, "You must specify return_tensors=True or return_text=True"
-        if return_tensors is True:
-            return_type = ReturnType.TENSORS
-        min_length = generate_kwargs.get(
-            "min_length", self.model.config.min_length if self.min_length is None else self.min_length
-        )
-        max_length = generate_kwargs.get(
-            "max_length", self.model.config.max_length if self.max_length is None else self.max_length
-        )
 
-        self.return_type = return_type
-        self.truncation = truncation
-        self.max_length = max_length
-        self.min_length = min_length
-        self.clean_up_tokenization_spaces = clean_up_tokenization_spaces
-
-        result = super().__call__(args)
+        result = super().__call__(args, **kwargs)
         if isinstance(result, dict):
             return [result]
         return result
@@ -301,17 +305,14 @@ class TranslationPipeline(Text2TextGenerationPipeline):
         else:
             return super()._parse_and_tokenize(*args, truncation=truncation)
 
-    def __call__(
-        self,
-        *args,
-        return_tensors=False,
-        return_text=True,
-        clean_up_tokenization_spaces=False,
-        truncation=TruncationStrategy.DO_NOT_TRUNCATE,
-        src_lang=None,
-        tgt_lang=None,
-        **generate_kwargs
-    ):
+    def set_parameters(self, src_lang=None, tgt_lang=None, **kwargs):
+        super().set_parameters(**kwargs)
+        if src_lang is not None:
+            self.src_lang = src_lang
+        if tgt_lang is not None:
+            self.tgt_lang = tgt_lang
+
+    def __call__(self, *args, **kwargs):
         r"""
         Translate the text(s) given as inputs.
 
@@ -341,16 +342,4 @@ class TranslationPipeline(Text2TextGenerationPipeline):
             - **translation_token_ids** (:obj:`torch.Tensor` or :obj:`tf.Tensor`, present when ``return_tensors=True``)
               -- The token ids of the translation.
         """
-        assert return_tensors or return_text, "You must specify return_tensors=True or return_text=True"
-        if src_lang is not None:
-            self.src_lang = src_lang
-        if tgt_lang is not None:
-            self.tgt_lang = tgt_lang
-        return super().__call__(
-            *args,
-            return_tensors=return_tensors,
-            return_text=return_text,
-            clean_up_tokenization_spaces=clean_up_tokenization_spaces,
-            truncation=truncation,
-            **generate_kwargs,
-        )
+        return super().__call__(*args, **kwargs)

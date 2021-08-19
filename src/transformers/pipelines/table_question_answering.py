@@ -17,7 +17,7 @@ class TableQuestionAnsweringArgumentHandler(ArgumentHandler):
     Handles arguments for the TableQuestionAnsweringPipeline
     """
 
-    def __call__(self, table=None, query=None, sequential=False, padding=True, truncation=True):
+    def __call__(self, table=None, query=None, **kwargs):
         # Returns tqa_pipeline_inputs of shape:
         # [
         #   {"table": pd.DataFrame, "query": List[str]},
@@ -60,7 +60,7 @@ class TableQuestionAnsweringArgumentHandler(ArgumentHandler):
 
                 tqa_pipeline_input["table"] = pd.DataFrame(tqa_pipeline_input["table"])
 
-        return tqa_pipeline_inputs, sequential, padding, truncation
+        return tqa_pipeline_inputs
 
 
 @add_end_docstrings(PIPELINE_INIT_ARGS)
@@ -78,6 +78,9 @@ class TableQuestionAnsweringPipeline(Pipeline):
     """
 
     default_input_names = "table,query"
+    sequential = False
+    padding = True
+    truncation = True
 
     def __init__(self, args_parser=TableQuestionAnsweringArgumentHandler(), *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -235,15 +238,20 @@ class TableQuestionAnsweringPipeline(Pipeline):
             - **cells** (:obj:`List[str]`) -- List of strings made up of the answer cell values.
             - **aggregator** (:obj:`str`) -- If the model has an aggregator, this returns the aggregator.
         """
-        pipeline_inputs, sequential, padding, truncation = self._args_parser(*args, **kwargs)
+        pipeline_inputs = self._args_parser(*args, **kwargs)
 
-        self.sequential = sequential
-        self.padding = padding
-        self.truncation = truncation
-        results = super().__call__(pipeline_inputs)
+        results = super().__call__(pipeline_inputs, **kwargs)
         if len(results) == 1:
             return results[0]
         return results
+
+    def set_parameters(self, sequential=None, padding=None, truncation=None, **kwargs):
+        if sequential is not None:
+            self.sequential = sequential
+        if padding is not None:
+            self.padding = padding
+        if truncation is not None:
+            self.truncation = truncation
 
     def preprocess(self, pipeline_input):
         table, query = pipeline_input["table"], pipeline_input["query"]

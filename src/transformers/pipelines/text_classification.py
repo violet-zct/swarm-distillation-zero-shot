@@ -37,7 +37,9 @@ class TextClassificationPipeline(Pipeline):
     <https://huggingface.co/models?filter=text-classification>`__.
     """
 
-    def __init__(self, return_all_scores: bool = False, **kwargs):
+    return_all_scores = False
+
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
         self.check_model_type(
@@ -46,8 +48,12 @@ class TextClassificationPipeline(Pipeline):
             else MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING
         )
 
+    def set_parameters(self, return_all_scores=None, **kwargs):
         self.tokenizer_kwargs = {}
-        self.return_all_scores = return_all_scores
+        if "truncation" in kwargs:
+            self.tokenizer_kwargs["truncation"] = kwargs["truncation"]
+        if return_all_scores is not None:
+            self.return_all_scores = return_all_scores
 
     def __call__(self, *args, **kwargs):
         """
@@ -65,13 +71,10 @@ class TextClassificationPipeline(Pipeline):
 
             If ``self.return_all_scores=True``, one such dictionary is returned per label.
         """
-        if "truncation" in kwargs:
-            self.tokenizer_kwargs["truncation"] = kwargs["truncation"]
         return super().__call__(*args, **kwargs)
 
-    def preprocess(self, inputs, return_tensors=None, **preprocess_parameters) -> Dict[str, GenericTensor]:
-        if return_tensors is None:
-            return_tensors = self.framework
+    def preprocess(self, inputs) -> Dict[str, GenericTensor]:
+        return_tensors = self.framework
         return self.tokenizer(inputs, return_tensors=return_tensors, **self.tokenizer_kwargs)
 
     def forward(self, model_inputs):

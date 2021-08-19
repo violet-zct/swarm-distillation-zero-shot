@@ -123,7 +123,11 @@ class AutomaticSpeechRecognitionPipeline(Pipeline):
 
             - **text** (:obj:`str`) -- The recognized text.
         """
-        return super().__call__(inputs)
+        return super().__call__(inputs, **kwargs)
+
+    def set_parameters(self, **kwargs):
+        # No parameters on this pipeline right now
+        pass
 
     def preprocess(self, inputs):
         if isinstance(inputs, str):

@@ -109,6 +109,13 @@ class QuestionAnsweringPipeline(Pipeline):
     """
 
     default_input_names = "question,context"
+    padding = "do_not_pad"
+    top_k = 1
+    doc_stride = 128
+    max_answer_len = 15
+    max_seq_len = 384
+    max_question_len = 64
+    handle_impossible_answer = False
 
     def __init__(
         self,
@@ -158,6 +165,41 @@ class QuestionAnsweringPipeline(Pipeline):
         else:
             return SquadExample(None, question, context, None, None, None)
 
+    def set_parameters(
+        self,
+        padding=None,
+        topk=None,
+        top_k=None,
+        doc_stride=None,
+        max_answer_len=None,
+        max_seq_len=None,
+        max_question_len=None,
+        handle_impossible_answer=None,
+        **kwargs
+    ):
+        # Set defaults values
+        if padding is not None:
+            self.padding = padding
+        if topk is not None and top_k is None:
+            import warnings
+
+            warnings.warn("topk parameter is deprecated, use top_k instead", UserWarning)
+            top_k = topk
+        if top_k is not None:
+            if top_k < 1:
+                raise ValueError(f"top_k parameter should be >= 1 (got {top_k})")
+            self.top_k = top_k
+        if doc_stride is not None:
+            self.doc_stride = doc_stride
+        if max_answer_len is not None:
+            if max_answer_len < 1:
+                raise ValueError(f"max_answer_len parameter should be >= 1 (got {max_answer_len}")
+            self.max_answer_len = max_answer_len
+        if max_question_len is not None:
+            self.max_question_len = max_question_len
+        if handle_impossible_answer is not None:
+            self.handle_impossible_answer = handle_impossible_answer
+
     def __call__(self, *args, **kwargs):
         """
         Answer the question(s) given as inputs by using the context(s).
@@ -201,34 +243,12 @@ class QuestionAnsweringPipeline(Pipeline):
             - **end** (:obj:`int`) -- The character end index of the answer (in the tokenized version of the input).
             - **answer** (:obj:`str`) -- The answer to the question.
         """
-        # Set defaults values
-        kwargs.setdefault("padding", "longest" if getattr(self.tokenizer, "pad_token", None) is not None else False)
-        kwargs.setdefault("topk", 1)
-        kwargs.setdefault("doc_stride", 128)
-        kwargs.setdefault("max_answer_len", 15)
-        kwargs.setdefault("max_seq_len", 384)
-        kwargs.setdefault("max_question_len", 64)
-        kwargs.setdefault("handle_impossible_answer", False)
-
-        if kwargs["topk"] < 1:
-            raise ValueError(f"topk parameter should be >= 1 (got {kwargs['topk']})")
-
-        if kwargs["max_answer_len"] < 1:
-            raise ValueError(f"max_answer_len parameter should be >= 1 (got {(kwargs['max_answer_len'])}")
-
-        self.padding = kwargs["padding"]
-        self.top_k = kwargs["topk"]
-        self.doc_stride = kwargs["doc_stride"]
-        self.max_answer_len = kwargs["max_answer_len"]
-        self.max_seq_len = kwargs["max_seq_len"]
-        self.max_question_len = kwargs["max_question_len"]
-        self.handle_impossible_answer = kwargs["handle_impossible_answer"]
 
         # Convert inputs to features
         examples = self._args_parser(*args, **kwargs)
         if len(examples) == 1:
-            return super().__call__(examples[0])
-        return super().__call__(examples)
+            return super().__call__(examples[0], **kwargs)
+        return super().__call__(examples, **kwargs)
 
     def preprocess(self, example):
         if not self.tokenizer.is_fast:

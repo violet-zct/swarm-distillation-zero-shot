@@ -38,10 +38,46 @@ class TextGenerationPipeline(Pipeline):
     begging for his blessing. <eod> </s> <eos>
     """
 
-    def __init__(self, *args, return_full_text=True, **kwargs):
+    def __init__(self, *args, **kwargs):
+        self.return_type = ReturnType.FULL_TEXT
+        self.generate_kwargs = {}
+        self.prefix = None
+        self.clean_up_tokenization_spaces = True
         super().__init__(*args, **kwargs)
+        if self.prefix is None:
+            self.prefix = self.model.config.prefix
+        if self.prefix is None and self.model.__class__.__name__ in [
+            "XLNetLMHeadModel",
+            "TransfoXLLMHeadModel",
+            "TFXLNetLMHeadModel",
+            "TFTransfoXLLMHeadModel",
+        ]:
+            # For XLNet and TransformerXL we add an article to the prompt to give more state to the model.
+            self.prefix = self.XL_PREFIX
 
-        self.return_full_text = return_full_text
+    def set_parameters(
+        self,
+        return_full_text=None,
+        return_tensors=None,
+        return_text=None,
+        return_type=None,
+        clean_up_tokenization_spaces=None,
+        prefix=None,
+        **generate_kwargs
+    ):
+        if return_full_text is not None and return_type is None:
+            return_type = ReturnType.FULL_TEXT if return_full_text else ReturnType.NEW_TEXT
+        if return_tensors is not None and return_type is None:
+            return_type = ReturnType.TENSORS
+
+        if prefix is not None:
+            self.prefix = prefix
+        if return_type is not None:
+            self.return_type = return_type
+        if clean_up_tokenization_spaces is not None:
+            self.clean_up_tokenization_spaces = clean_up_tokenization_spaces
+        if generate_kwargs:
+            self.generate_kwargs = generate_kwargs
 
     # overriding _parse_and_tokenize to allow for unusual language-modeling tokenizer arguments
     def _parse_and_tokenize(self, *args, **kwargs):
@@ -54,17 +90,7 @@ class TextGenerationPipeline(Pipeline):
 
         return super()._parse_and_tokenize(*args, **kwargs)
 
-    def __call__(
-        self,
-        text_inputs,
-        return_tensors=False,
-        return_text=True,
-        return_full_text=None,
-        return_type=ReturnType.FULL_TEXT,
-        clean_up_tokenization_spaces=False,
-        prefix=None,
-        **generate_kwargs
-    ):
+    def __call__(self, text_inputs, **kwargs):
         """
         Complete the prompt(s) given as inputs.
 
@@ -93,39 +119,13 @@ class TextGenerationPipeline(Pipeline):
             - **generated_token_ids** (:obj:`torch.Tensor` or :obj:`tf.Tensor`, present when ``return_tensors=True``)
               -- The token ids of the generated text.
         """
-        if prefix is not None:
-            self.prefix = prefix
-        else:
-            self.prefix = self.model.config.prefix
-
-        if return_full_text is not None:
-            self.return_full_text = return_full_text
-
-        if return_tensors:
-            self.return_type = ReturnType.TENSORS
-        elif self.return_full_text:
-            self.return_type = ReturnType.FULL_TEXT
-        else:
-            self.return_type = ReturnType.NEW_TEXT
-
-        self.clean_up_tokenization_spaces = clean_up_tokenization_spaces
-        self.generate_kwargs = generate_kwargs
-
-        result = super().__call__(text_inputs)
+        result = super().__call__(text_inputs, **kwargs)
         return result
         if len(result) == 1:
             return result[0]
         return result
 
     def preprocess(self, prompt_text):
-        if self.prefix is None and self.model.__class__.__name__ in [
-            "XLNetLMHeadModel",
-            "TransfoXLLMHeadModel",
-            "TFXLNetLMHeadModel",
-            "TFTransfoXLLMHeadModel",
-        ]:
-            # For XLNet and TransformerXL we add an article to the prompt to give more state to the model.
-            self.prefix = self.XL_PREFIX
 
         if self.prefix:
             prefix_inputs = self.tokenizer(

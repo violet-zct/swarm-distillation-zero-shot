@@ -671,6 +671,7 @@ class Pipeline(_ScikitCompat):
         args_parser: ArgumentHandler = None,
         device: int = -1,
         binary_output: bool = False,
+        **kwargs,
     ):
 
         if framework is None:
@@ -695,6 +696,7 @@ class Pipeline(_ScikitCompat):
             self.model.config.update(task_specific_params.get(task))
 
         self.call_count = 0
+        self.set_parameters(**kwargs)
 
     def save_pretrained(self, save_directory: str):
         """
@@ -797,6 +799,10 @@ class Pipeline(_ScikitCompat):
             )
 
     @abstractmethod
+    def set_parameters(self, **pipeline_parameters):
+        raise NotImplementedError("set_parameters not implemented")
+
+    @abstractmethod
     def preprocess(self, input_: Any, **preprocess_parameters) -> Dict[str, GenericTensor]:
         raise NotImplementedError("preprocess not implemented")
 
@@ -834,6 +840,7 @@ class Pipeline(_ScikitCompat):
         return final_iterator
 
     def __call__(self, inputs, *args, num_workers=8, **kwargs):
+        self.set_parameters(**kwargs)
         self.call_count += 1
         if self.call_count > 10 and self.framework == "pt" and self.device.type == "cuda":
             warnings.warn(

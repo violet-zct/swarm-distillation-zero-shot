@@ -19,7 +19,7 @@ class ZeroShotClassificationArgumentHandler(ArgumentHandler):
 
     def _parse_labels(self, labels):
         if isinstance(labels, str):
-            labels = [label.strip() for label in labels.split(",")]
+            labels = [label.strip() for label in labels.split(",") if label.strip()]
         return labels
 
     def __call__(self, sequences, labels, hypothesis_template):
@@ -35,13 +35,12 @@ class ZeroShotClassificationArgumentHandler(ArgumentHandler):
 
         if isinstance(sequences, str):
             sequences = [sequences]
-        labels = self._parse_labels(labels)
 
         sequence_pairs = []
         for sequence in sequences:
             sequence_pairs.extend([[sequence, hypothesis_template.format(label)] for label in labels])
 
-        return sequence_pairs, labels, sequences
+        return sequence_pairs, sequences
 
 
 @add_end_docstrings(PIPELINE_INIT_ARGS)
@@ -63,8 +62,10 @@ class ZeroShotClassificationPipeline(Pipeline):
     """
 
     def __init__(self, args_parser=ZeroShotClassificationArgumentHandler(), *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        self.hypothesis_template = "This example is {}."
+        self.multi_label = False
         self._args_parser = args_parser
+        super().__init__(*args, **kwargs)
         if self.entailment_id == -1:
             logger.warning(
                 "Failed to determine 'entailment' label id from the label2id mapping in the model config. Setting to "
@@ -116,12 +117,23 @@ class ZeroShotClassificationPipeline(Pipeline):
 
         return inputs
 
+    def set_parameters(self, **kwargs):
+        if kwargs.get("multi_class", None) is not None:
+            kwargs["multi_label"] = kwargs["multi_class"]
+            logger.warning(
+                "The `multi_class` argument has been deprecated and renamed to `multi_label`. "
+                "`multi_class` will be removed in a future version of Transformers."
+            )
+        if "candidate_labels" in kwargs:
+            self.candidate_labels = self._args_parser._parse_labels(kwargs["candidate_labels"])
+        if "multi_label" in kwargs:
+            self.multi_label = kwargs["multi_label"]
+        if "hypothesis_template" in kwargs:
+            self.hypothesis_template = kwargs["hypothesis_template"]
+
     def __call__(
         self,
         sequences: Union[str, List[str]],
-        candidate_labels,
-        hypothesis_template="This example is {}.",
-        multi_label=False,
         **kwargs,
     ):
         """
@@ -154,30 +166,19 @@ class ZeroShotClassificationPipeline(Pipeline):
             - **labels** (:obj:`List[str]`) -- The labels sorted by order of likelihood.
             - **scores** (:obj:`List[float]`) -- The probabilities for each of the labels.
         """
-        if "multi_class" in kwargs and kwargs["multi_class"] is not None:
-            multi_label = kwargs.pop("multi_class")
-            logger.warning(
-                "The `multi_class` argument has been deprecated and renamed to `multi_label`. "
-                "`multi_class` will be removed in a future version of Transformers."
-            )
-        self.multi_label = multi_label
 
-        sequence_pairs, candidate_labels, sequences = self._args_parser(
-            sequences, candidate_labels, hypothesis_template
-        )
-        inputs = {"sequence_pairs": sequence_pairs, "candidate_labels": candidate_labels, "sequences": sequences}
-        result = super().__call__(inputs)
+        result = super().__call__(sequences, **kwargs)
         if len(result) == 1:
             return result[0]
         return result
 
     def preprocess(self, inputs):
-        sequence_pairs = inputs["sequence_pairs"]
+        sequence_pairs, sequences = self._args_parser(inputs, self.candidate_labels, self.hypothesis_template)
         model_inputs = self._parse_and_tokenize(sequence_pairs)
 
         prepared_inputs = {
-            "candidate_labels": inputs["candidate_labels"],
-            "sequences": inputs["sequences"],
+            "candidate_labels": self.candidate_labels,
+            "sequences": sequences,
             "inputs": model_inputs,
         }
         return prepared_inputs
@@ -215,20 +216,17 @@ class ZeroShotClassificationPipeline(Pipeline):
         num_sequences = N // n
         reshaped_outputs = logits.reshape((num_sequences, n, -1))
 
-        if len(candidate_labels) == 1:
-            self.multi_label = True
-
-        if not self.multi_label:
-            # softmax the "entailment" logits over all candidate labels
-            entail_logits = reshaped_outputs[..., self.entailment_id]
-            scores = np.exp(entail_logits) / np.exp(entail_logits).sum(-1, keepdims=True)
-        else:
+        if self.multi_label or len(self.candidate_labels) == 1:
             # softmax over the entailment vs. contradiction dim for each label independently
             entailment_id = self.entailment_id
             contradiction_id = -1 if entailment_id == 0 else 0
             entail_contr_logits = reshaped_outputs[..., [contradiction_id, entailment_id]]
             scores = np.exp(entail_contr_logits) / np.exp(entail_contr_logits).sum(-1, keepdims=True)
             scores = scores[..., 1]
+        else:
+            # softmax the "entailment" logits over all candidate labels
+            entail_logits = reshaped_outputs[..., self.entailment_id]
+            scores = np.exp(entail_logits) / np.exp(entail_logits).sum(-1, keepdims=True)
 
         result = []
         for iseq in range(num_sequences):

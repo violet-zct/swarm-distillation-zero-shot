@@ -1,27 +1,17 @@
-from typing import TYPE_CHECKING, Dict, Optional, Union
+from typing import Dict
 
 import numpy as np
 
 from ..file_utils import add_end_docstrings, is_tf_available, is_torch_available
-from ..modelcard import ModelCard
-from ..tokenization_utils import PreTrainedTokenizer
 from ..utils import logging
-from .base import PIPELINE_INIT_ARGS, ArgumentHandler, GenericTensor, Pipeline, PipelineException
+from .base import PIPELINE_INIT_ARGS, GenericTensor, Pipeline, PipelineException
 
-
-if TYPE_CHECKING:
-    from ..modeling_tf_utils import TFPreTrainedModel
-    from ..modeling_utils import PreTrainedModel
 
 if is_tf_available():
     import tensorflow as tf
 
-    from ..models.auto.modeling_tf_auto import TF_MODEL_WITH_LM_HEAD_MAPPING
-
 if is_torch_available():
     import torch
-
-    from ..models.auto.modeling_auto import MODEL_FOR_MASKED_LM_MAPPING
 
 
 logger = logging.get_logger(__name__)
@@ -56,40 +46,9 @@ class FillMaskPipeline(Pipeline):
         This pipeline only works for inputs with exactly one token masked.
     """
 
-    def __init__(
-        self,
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        tokenizer: PreTrainedTokenizer,
-        modelcard: Optional[ModelCard] = None,
-        framework: Optional[str] = None,
-        args_parser: ArgumentHandler = None,
-        device: int = -1,
-        top_k=5,
-        targets=None,
-        task: str = "",
-    ):
-        super().__init__(
-            model=model,
-            tokenizer=tokenizer,
-            modelcard=modelcard,
-            framework=framework,
-            args_parser=args_parser,
-            device=device,
-            binary_output=True,
-            task=task,
-        )
-
-        self.check_model_type(TF_MODEL_WITH_LM_HEAD_MAPPING if self.framework == "tf" else MODEL_FOR_MASKED_LM_MAPPING)
-        self.top_k = top_k
-        self.targets = targets
-        if targets is not None:
-            self.target_ids = self.get_target_ids(targets)
-        else:
-            self.target_ids = None
-        if self.tokenizer.mask_token_id is None:
-            raise PipelineException(
-                "fill-mask", self.model.base_model_prefix, "The tokenizer does not define a `mask_token`."
-            )
+    top_k = 5
+    targets = None
+    target_ids = None
 
     def get_masked_index(self, input_ids: GenericTensor) -> np.ndarray:
         if self.framework == "tf":
@@ -225,7 +184,20 @@ class FillMaskPipeline(Pipeline):
             self.top_k = target_ids.shape[0]
         return target_ids
 
-    def __call__(self, inputs, *args, targets=None, top_k: Optional[int] = None, **kwargs):
+    def set_parameters(self, top_k=None, targets=None):
+        if top_k is not None:
+            self.top_k = top_k
+
+        if targets is not None:
+            self.target_ids = self.get_target_ids(targets)
+            self.targets = targets
+
+        if self.tokenizer.mask_token_id is None:
+            raise PipelineException(
+                "fill-mask", self.model.base_model_prefix, "The tokenizer does not define a `mask_token`."
+            )
+
+    def __call__(self, inputs, *args, **kwargs):
         """
         Fill the masked token in the text(s) given as inputs.
 
@@ -247,9 +219,4 @@ class FillMaskPipeline(Pipeline):
             - **token** (:obj:`int`) -- The predicted token id (to replace the masked one).
             - **token** (:obj:`str`) -- The predicted token (to replace the masked one).
         """
-        if top_k is not None:
-            self.top_k = top_k
-        if targets is not None:
-            self.targets = targets
-            self.target_ids = self.get_target_ids(targets)
-        return super().__call__(inputs, targets, top_k, **kwargs)
+        return super().__call__(inputs, **kwargs)

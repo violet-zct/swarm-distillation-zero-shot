@@ -190,26 +190,32 @@ class ConversationalPipeline(Pipeline):
         conversational_pipeline([conversation_1, conversation_2])
     """
 
-    def __init__(self, min_length_for_response=32, minimum_tokens=10, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    min_length_for_response = 32
+    minimum_tokens = 10
+    clean_up_tokenization_spaces = True
 
-        # We need at least an eos_token
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         # assert self.tokenizer.eos_token_id is not None, "ConversationalPipeline tokenizer should have an EOS token set"
         if self.tokenizer.pad_token_id is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.max_length = kwargs.get("max_length", self.model.config.max_length)
 
-        self.min_length_for_response = min_length_for_response
-        self.minimum_tokens = minimum_tokens
-        self.max_length = self.model.config.max_length
-
-    def __call__(
-        self,
-        conversations: Union[Conversation, List[Conversation]],
-        clean_up_tokenization_spaces=True,
-        max_length=None,
-        num_workers=0,
-        **generate_kwargs
+    def set_parameters(
+        self, min_length_for_response=None, minimum_tokens=None, clean_up_tokenization_spaces=None, **generate_kwargs
     ):
+        if min_length_for_response:
+            self.min_length_for_response = min_length_for_response
+        if minimum_tokens:
+            self.minimum_tokens = minimum_tokens
+        if "max_length" in generate_kwargs:
+            self.max_length = generate_kwargs.get("max_length", self.model.config.max_length)
+        if clean_up_tokenization_spaces:
+            self.clean_up_tokenization_spaces = clean_up_tokenization_spaces
+        if generate_kwargs:
+            self.generate_kwargs = generate_kwargs
+
+    def __call__(self, conversations: Union[Conversation, List[Conversation]], num_workers=0, **kwargs):
         r"""
         Generate responses for the conversation(s) given as inputs.
 
@@ -226,14 +232,11 @@ class ConversationalPipeline(Pipeline):
             :class:`~transformers.Conversation` or a list of :class:`~transformers.Conversation`: Conversation(s) with
             updated generated responses for those containing a new user input.
         """
-        if max_length is not None:
-            self.max_length = max_length
-        self.clean_up_tokenization_spaces = clean_up_tokenization_spaces
         # XXX: num_workers==0 is required to be backward compatible
         # Otherwise the threads will require a Conversation copy.
         # This will definitely hinder performance on GPU, but has to be opted
         # in because of this BC change.
-        outputs = super().__call__(conversations, num_workers=num_workers)
+        outputs = super().__call__(conversations, num_workers=num_workers, **kwargs)
         if isinstance(outputs, list) and len(outputs) == 1:
             return outputs[0]
         return outputs
