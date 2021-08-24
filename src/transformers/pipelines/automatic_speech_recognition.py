@@ -131,8 +131,13 @@ class AutomaticSpeechRecognitionPipeline(Pipeline):
 
     def preprocess(self, inputs):
         if isinstance(inputs, str):
-            with open(inputs, "rb") as f:
-                inputs = f.read()
+            if inputs.startswith("http://") or inputs.startswith("https://"):
+                import requests
+
+                inputs = requests.get(inputs, stream=True).raw
+            else:
+                with open(inputs, "rb") as f:
+                    inputs = f.read()
 
         if isinstance(inputs, bytes):
             inputs = ffmpeg_read(inputs, self.feature_extractor.sampling_rate)
