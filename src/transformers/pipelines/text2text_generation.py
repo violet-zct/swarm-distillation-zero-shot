@@ -140,7 +140,7 @@ class Text2TextGenerationPipeline(Pipeline):
               -- The token ids of the generated text.
         """
 
-        result = super().__call__(args, **kwargs)
+        result = super().__call__(*args, **kwargs)
         if isinstance(result, dict):
             return [result]
         return result
