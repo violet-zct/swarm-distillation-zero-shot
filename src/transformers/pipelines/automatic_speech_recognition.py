@@ -148,14 +148,22 @@ class AutomaticSpeechRecognitionPipeline(Pipeline):
     def forward(self, model_inputs):
         model_inputs = self.ensure_tensor_on_device(**model_inputs)
         name = self.model.__class__.__name__
-        if name.endswith("ForConditionalGeneration"):
-            input_ids = model_inputs["input_features"]
-            tokens = self.model.generate(input_ids=input_ids)
-            tokens = tokens.squeeze(0)
-        elif name.endswith("ForCTC"):
-            outputs = self.model(**model_inputs)
-            tokens = outputs.logits.squeeze(0).argmax(dim=-1)
-        return tokens
+        batch_size = self.feature_extractor.sampling_rate * 60  # 1mn batch
+        input_ids = model_inputs.get("input_features", model_inputs["input_values"])
+        n = input_ids.shape[-1]
+        all_tokens = []
+
+        for i in range(0, n, batch_size):
+            if name.endswith("ForConditionalGeneration"):
+                tokens = self.model.generate(input_ids=input_ids[:, i : i + batch_size])
+                tokens = tokens.squeeze(0)
+            elif name.endswith("ForCTC"):
+                outputs = self.model(input_values=input_ids[:, i : i + batch_size])
+                tokens = outputs.logits.squeeze(0).argmax(dim=-1)
+            all_tokens.append(tokens)
+        import torch
+
+        return torch.cat(all_tokens, axis=0)
 
     def postprocess(self, model_outputs):
         skip_special_tokens = False if "CTC" in self.tokenizer.__class__.__name__ else True
