@@ -718,7 +718,7 @@ class Speech2TextModelIntegrationTests(unittest.TestCase):
             batch["speech"] = speech
             return batch
 
-        ds = load_dataset("patrickvonplaten/librispeech_asr_dummy", "clean", split="validation")
+        ds = load_dataset("patrickvonplaten/librispeech_asr_dummy", "clean", split="validation", download_mode="force_redownload")
         ds = ds.select(range(num_samples)).map(map_to_array)
 
         return ds["speech"][:num_samples]
