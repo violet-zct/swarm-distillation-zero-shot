@@ -8,6 +8,7 @@ on:
 env:
   TRANSFORMERS_IS_CI: yes
   RUN_SLOW: yes
+  XRT_TPU_CONFIG: localservice;0;localhost:51011
 
 jobs:
   run_tpu_tests:
