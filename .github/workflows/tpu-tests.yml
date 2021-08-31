@@ -13,11 +13,11 @@ env:
 jobs:
   run_tpu_tests:
     runs-on: [self-hosted, tpu]
+    container: gcr.io/tpu-pytorch/xla:r1.9
     steps:
       - name: Launcher docker
         uses: actions/checkout@v2
 
       - name: Tests
         run: |
-          whoami
           python -c "import torch; import torch_xla.core.xla_model as xm; print(xm.xla_device())"
