@@ -1,0 +1,27 @@
+name: TPU tests
+
+on:
+  push:
+    branches:
+      - tpu*
+
+env:
+  TRANSFORMERS_IS_CI: yes
+  RUN_SLOW: yes
+
+jobs:
+  run_doctests:
+    runs-on: [self-hosted, tpu]
+    steps:
+      - name: Launcher docker
+        uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: |
+          apt -y update && apt install -y libsndfile1-dev
+          pip install --upgrade pip
+          pip install .[dev]
+
+      - name: Run doctests
+        run: |
+          pytest --doctest-modules $(cat utils/documentation_tests.txt) -sv --doctest-continue-on-failure

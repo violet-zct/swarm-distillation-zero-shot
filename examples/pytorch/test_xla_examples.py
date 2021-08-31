@@ -39,9 +39,9 @@ class TorchXLAExamplesTests(unittest.TestCase):
         output_directory = "run_glue_output"
 
         testargs = f"""
-            transformers/examples/text-classification/run_glue.py
+            transformers/examples/pytorch/text-classification/run_glue.py
             --num_cores=8
-            transformers/examples/text-classification/run_glue.py
+            transformers/examples/pytorch/text-classification/run_glue.py
             --do_train
             --do_eval
             --task_name=mrpc
