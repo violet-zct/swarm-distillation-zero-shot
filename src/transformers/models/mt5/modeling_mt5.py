@@ -23,6 +23,7 @@ logger = logging.get_logger(__name__)
 
 _CONFIG_FOR_DOC = "T5Config"
 _TOKENIZER_FOR_DOC = "T5Tokenizer"
+_CHECKPOINT_FOR_DOC = "google/mt5-small"
 
 
 class MT5Model(T5Model):

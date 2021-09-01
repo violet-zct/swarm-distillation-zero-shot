@@ -1111,6 +1111,9 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
                     at the next major version. See `pull request 11471
                     <https://github.com/huggingface/transformers/pull/11471>`__ for more information.
 
+            no_check_corrupted (:obj:`bool`, `optional`, defaults to :obj:`False`):
+                Whether to skip the check to ensure the state dict isn't corrupted. Use with caution.
+
             kwargs (remaining dictionary of keyword arguments, `optional`):
                 Can be used to update the configuration object (after it being loaded) and initiate the model (e.g.,
                 :obj:`output_attentions=True`). Behaves differently depending on whether a ``config`` is provided or
@@ -1170,6 +1173,7 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
         from_auto_class = kwargs.pop("_from_auto", False)
         _fast_init = kwargs.pop("_fast_init", True)
         torch_dtype = kwargs.pop("torch_dtype", None)
+        no_check_corrupted = kwargs.pop("no_check_corrupted", False)
 
         from_pt = not (from_tf | from_flax)
 
@@ -1374,6 +1378,7 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
                 pretrained_model_name_or_path,
                 ignore_mismatched_sizes=ignore_mismatched_sizes,
                 _fast_init=_fast_init,
+                no_check_corrupted=no_check_corrupted
             )
 
         # make sure token embedding weights are still tied if needed
@@ -1395,7 +1400,7 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
 
     @classmethod
     def _load_state_dict_into_model(
-        cls, model, state_dict, pretrained_model_name_or_path, ignore_mismatched_sizes=False, _fast_init=True
+        cls, model, state_dict, pretrained_model_name_or_path, ignore_mismatched_sizes=False, _fast_init=True, no_check_corrupted=False
     ):
 
         # Convert old format to new format if needed from a PyTorch state_dict
@@ -1510,7 +1515,7 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
             start_prefix = cls.base_model_prefix + "."
         if hasattr(model, cls.base_model_prefix) and not has_prefix_module:
             model_to_load = getattr(model, cls.base_model_prefix)
-            if any(key in expected_keys_not_prefixed for key in loaded_keys):
+            if not no_check_corrupted and any(key in expected_keys_not_prefixed for key in loaded_keys):
                 raise ValueError(
                     "The state dictionary of the model you are training to load is corrupted. Are you sure it was "
                     "properly saved?"

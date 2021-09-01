@@ -32,6 +32,7 @@ from .configuration_camembert import CamembertConfig
 logger = logging.get_logger(__name__)
 
 _TOKENIZER_FOR_DOC = "CamembertTokenizer"
+_CHECKPOINT_FOR_DOC = "camembert-base"
 
 CAMEMBERT_PRETRAINED_MODEL_ARCHIVE_LIST = [
     "camembert-base",

@@ -31,6 +31,8 @@ from .configuration_xlm_roberta import XLMRobertaConfig
 
 logger = logging.get_logger(__name__)
 
+_CHECKPOINT_FOR_DOC = "xlm-roberta-base"
+
 XLM_ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST = [
     "xlm-roberta-base",
     "xlm-roberta-large",

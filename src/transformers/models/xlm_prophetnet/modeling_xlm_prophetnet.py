@@ -28,6 +28,7 @@ from .configuration_xlm_prophetnet import XLMProphetNetConfig
 logger = logging.get_logger(__name__)
 
 _TOKENIZER_FOR_DOC = "XLMProphetNetTokenizer"
+_CHECKPOINT_FOR_DOC = "microsoft/xprophetnet-large-wiki100-cased"
 
 XLM_PROPHETNET_PRETRAINED_MODEL_ARCHIVE_LIST = [
     "microsoft/xprophetnet-large-wiki100-cased",
