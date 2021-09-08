@@ -600,7 +600,9 @@ if __name__ == "__main__":
 
     processors_config_without_mapping = [k for k, v in processors.items() if v is None]
     configurations = [c for c in configurations if c not in processors_config_without_mapping]
-    configurations = [c for c in configurations if c.model_type not in args.black_list]
+
+    if args.black_list:
+        configurations = [c for c in configurations if c.model_type not in args.black_list]
 
     to_export = {
         configuration: {
