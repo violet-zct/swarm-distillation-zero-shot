@@ -69,6 +69,23 @@ ds = load_dataset("wikitext", "wikitext-2-raw-v1")
 training_ds = ds['train']
 testing_ds = ds['test']
 
+per_model_type_configuration_attributes = {
+    "big_bird": {"num_labels": 1},
+}
+
+unexportable_model_architectures = [
+    "RoFormerForMultipleChoice",
+    "TFRoFormerForMultipleChoice",
+    "TFMobileBertForMultipleChoice",
+    "MobileBertForMultipleChoice",
+    "TFDistilBertForMultipleChoice",
+    "DistilBertForMultipleChoice",
+    "TFAlbertForMultipleChoice",
+    "AlbertForMultipleChoice",
+    "TFMPNetForMultipleChoice",
+    "MPNetForMultipleChoice",
+]
+
 
 def get_checkpoint_from_configuration_class(config):
     checkpoint = None
@@ -106,6 +123,7 @@ def get_tiny_config_from_class(configuration_class):
     camel_case_model_name = configuration_class.__name__.split("Config")[0]
 
     try:
+        print("Importing", model_type_to_module_name(model_type))
         module = importlib.import_module(
             f".test_modeling_{model_type_to_module_name(model_type)}", package="tests"
         )
@@ -141,36 +159,38 @@ def build_pytorch_weights_from_multiple_architectures(pytorch_architectures, wei
 
         base_tiny_config.num_labels = 2
 
+        if config.model_type in per_model_type_configuration_attributes:
+            for key, value in per_model_type_configuration_attributes[config.model_type].items():
+                setattr(base_tiny_config, key, value)
+
+        print(base_tiny_config)
         os.makedirs(f"{weights_path}/{config.model_type}", exist_ok=True)
         base_tiny_config.save_pretrained(f"{weights_path}/{config.model_type}")
 
         state_dict = {}
         flat_architectures = []
+
+        per_model_configuration_attributes = {
+            "ReformerModelWithLMHead": {"is_decoder": True},
+            "ReformerModelForMaskedLM": {"is_decoder": False},
+        }
+
         for architecture_tuple in architectures:
             if not isinstance(architecture_tuple, tuple):
                 architecture_tuple = (architecture_tuple,)
 
             for architecture in architecture_tuple:
                 tiny_config = copy.deepcopy(base_tiny_config)
+                if architecture.__name__ in per_model_configuration_attributes:
+                    for key, value in per_model_configuration_attributes[architecture.__name__].items():
+                        setattr(tiny_config, key, value)
                 flat_architectures.append(architecture)
 
                 if "DPRQuestionEncoder" in architecture.__name__:
                     continue
 
-                if "ReformerModelWithLMHead" in architecture.__name__:
-                    tiny_config.is_decoder = True
 
-                if "ReformerForMaskedLM" in architecture.__name__:
-                    tiny_config.is_decoder = False
-
-                double_labels = ["ForQuestionAnswering"]
-
-                tiny_config.num_labels = 1
-
-                for double_label in double_labels:
-                    if double_label in architecture.__name__:
-                        tiny_config.num_labels = 2
-
+                print(architecture)
                 model = architecture.from_pretrained(
                     None, config=tiny_config, state_dict=state_dict, no_check_corrupted=True
                 )
@@ -206,13 +226,24 @@ def build_tensorflow_weights_from_multiple_architectures(tensorflow_architecture
             for k, v in config_overrides.items():
                 setattr(base_tiny_config, k, v)
 
-
         base_tiny_config.num_labels = 2
 
+
+        if config.model_type in per_model_type_configuration_attributes:
+            for key, value in per_model_type_configuration_attributes[config.model_type].items():
+                setattr(base_tiny_config, key, value)
+
         os.makedirs(f"{weights_path}/{config.model_type}", exist_ok=True)
+        print(base_tiny_config)
         base_tiny_config.save_pretrained(f"{weights_path}/{config.model_type}")
 
         flat_architectures = []
+
+        per_model_configuration_attributes = {
+            "ReformerModelWithLMHead": {"is_decoder": True},
+            "ReformerModelForMaskedLM": {"is_decoder": False},
+        }
+
         with tempfile.TemporaryDirectory() as temp_dir:
             for architecture_tuple in architectures:
                 if not isinstance(architecture_tuple, tuple):
@@ -220,25 +251,14 @@ def build_tensorflow_weights_from_multiple_architectures(tensorflow_architecture
 
                 for architecture in architecture_tuple:
                     tiny_config = copy.deepcopy(base_tiny_config)
+                    if architecture.__name__ in per_model_configuration_attributes:
+                        for key, value in per_model_configuration_attributes[architecture.__name__]:
+                            setattr(tiny_config, key, value)
 
                     if "DPRQuestionEncoder" in architecture.__name__:
                         continue
 
                     flat_architectures.append(architecture)
-
-                    if "ReformerModelWithLMHead" in architecture.__name__:
-                        tiny_config.is_decoder = True
-
-                    if "ReformerForMaskedLM" in architecture.__name__:
-                        tiny_config.is_decoder = False
-
-                    double_labels = ["ForQuestionAnswering"]
-
-                    tiny_config.num_labels = 1
-
-                    for double_label in double_labels:
-                        if double_label in architecture.__name__:
-                            tiny_config.num_labels = 2
 
                     try:
                         model = architecture.from_pretrained(
@@ -366,8 +386,9 @@ def build_processor_files(tokenizer_mapping, output_folder):
                 new_tokenizer = tokenizer_fast.train_new_from_iterator(training_ds['text'], 1000)
                 tokenizer_fast(testing_ds['text'])
                 # print(f"Saving! Converted from {len(tokenizer_fast)} vocab size to {len(new_tokenizer)}.")
-                tokenizer_fast.save_pretrained(os.path.join(output_folder, model_type))
-                tokenizer_fast.save_pretrained(os.path.join(output_folder, model_type), legacy_format=True)
+                print("SAVING", len(new_tokenizer))
+                new_tokenizer.save_pretrained(os.path.join(output_folder, model_type))
+                new_tokenizer.save_pretrained(os.path.join(output_folder, model_type), legacy_format=True)
 
                 report['vocab_size'] = len(new_tokenizer)
             except Exception as e:
@@ -386,42 +407,14 @@ def check_architecture_validity(pytorch_architectures, tensorflow_architectures,
     for config, architectures in tqdm(
             pytorch_architectures.items(), desc="Checking PyTorch weights validity"
     ):
-        base_tiny_config = get_tiny_config_from_class(config)
-
-        if base_tiny_config is None:
-            continue
-
-        if base_tiny_config.model_type in vocab_sizes:
-            setattr(base_tiny_config, "vocab_size", vocab_sizes[base_tiny_config.model_type])
-
         for architecture_tuple in architectures:
             if not isinstance(architecture_tuple, tuple):
                 architecture_tuple = (architecture_tuple,)
 
             for architecture in architecture_tuple:
-                tiny_config = copy.deepcopy(base_tiny_config)
-
-                if "DPRQuestionEncoder" in architecture.__name__:
-                    continue
-
-                if "ReformerModelWithLMHead" in architecture.__name__:
-                    tiny_config.is_decoder = True
-
-                if "ReformerForMaskedLM" in architecture.__name__:
-                    tiny_config.is_decoder = False
-
-                double_labels = ["ForQuestionAnswering"]
-
-                tiny_config.num_labels = 1
-
-                for double_label in double_labels:
-                    if double_label in architecture.__name__:
-                        tiny_config.num_labels = 2
-
                 model, loading_info = architecture.from_pretrained(
                     f"{weights_path}/{config.model_type}",
                     output_loading_info=True,
-                    config=tiny_config,
                     no_check_corrupted=True
                 )
                 if loading_info["missing_keys"] == 0:
@@ -434,46 +427,15 @@ def check_architecture_validity(pytorch_architectures, tensorflow_architectures,
     for config, architectures in tqdm(
             tensorflow_architectures.items(), desc="Checking TensorFlow weights validity"
     ):
-        base_tiny_config = get_tiny_config_from_class(config)
-
-        if base_tiny_config is None:
-            continue
-
-        if base_tiny_config.model_type in vocab_sizes:
-            setattr(base_tiny_config, "vocab_size", vocab_sizes[base_tiny_config.model_type])
-
         for architecture_tuple in architectures:
             if not isinstance(architecture_tuple, tuple):
                 architecture_tuple = (architecture_tuple,)
 
             for architecture in architecture_tuple:
-                tiny_config = copy.deepcopy(base_tiny_config)
-
-                if "DPRQuestionEncoder" in architecture.__name__:
-                    continue
-
-                if "ReformerModelWithLMHead" in architecture.__name__:
-                    tiny_config.is_decoder = True
-
-                if "ReformerForMaskedLM" in architecture.__name__:
-                    tiny_config.is_decoder = False
-
-                double_labels = ["ForQuestionAnswering"]
-
-                tiny_config.num_labels = 1
-
-                for double_label in double_labels:
-                    if double_label in architecture.__name__:
-                        tiny_config.num_labels = 2
-
-                try:
-                    model, loading_info = architecture.from_pretrained(
-                        f"{weights_path}/{config.model_type}",
-                        output_loading_info=True,
-                        config=tiny_config,
-                    )
-                except Exception as e:
-                    raise ValueError(f"Couldn't load {architecture.__name__}") from e
+                model, loading_info = architecture.from_pretrained(
+                    f"{weights_path}/{config.model_type}",
+                    output_loading_info=True,
+                )
 
                 if len(loading_info["missing_keys"]) != 0:
                     required_weights_missing = []
@@ -525,26 +487,17 @@ tensorflow_mappings = [
 # Reorder the mappings, so that a single configuration maps to an array of all possible architectures attributed
 # to that configuration.
 # Ex: {BertConfig: [BertModel, BertForMaskedLM, ..., BertForQuestionAnswering]}
-def get_pytorch_architectures_from_configuration_list(configuration_list):
-    return {
-        config: [
-            pytorch_mapping[config]
-            for pytorch_mapping in pytorch_mappings
-            if config in pytorch_mapping
-        ]
-        for config in configuration_list
-    }
-
-
-def get_tensorflow_architectures_from_configuration_list(configuration_list):
-    return {
-        config: [
-            tensorflow_mapping[config]
-            for tensorflow_mapping in tensorflow_mappings
-            if config in tensorflow_mapping
-        ]
-        for config in configuration_list
-    }
+def get_architectures_from_configuration_list(mappings, configuration_list):
+    returned_mapping = {}
+    for config in configuration_list:
+        returned_mapping[config] = []
+        for mapping in mappings:
+            if config in mapping:
+                models = mapping[config] if isinstance(mapping[config], tuple) else (mapping[config],)
+                for model in models:
+                    if model.__name__ not in unexportable_model_architectures:
+                        returned_mapping[config].append(model)
+    return returned_mapping
 
 
 def get_processor_mapping_from_configuration_list(configuration_list):
@@ -588,14 +541,14 @@ if __name__ == "__main__":
         raise ValueError("Please provide at least one model type or pass `--all` to export all architectures.")
 
     if args.all:
-        pytorch_architectures = get_pytorch_architectures_from_configuration_list(CONFIG_MAPPING.values())
-        tensorflow_architectures = get_tensorflow_architectures_from_configuration_list(CONFIG_MAPPING.values())
+        pytorch_architectures = get_architectures_from_configuration_list(pytorch_mappings, CONFIG_MAPPING.values())
+        tensorflow_architectures = get_architectures_from_configuration_list(tensorflow_mappings, CONFIG_MAPPING.values())
         processors = get_processor_mapping_from_configuration_list(CONFIG_MAPPING.values())
         configurations = CONFIG_MAPPING.values()
     else:
         configurations = [CONFIG_MAPPING[model_type] for model_type in args.model_types]
-        pytorch_architectures = get_pytorch_architectures_from_configuration_list(configurations)
-        tensorflow_architectures = get_tensorflow_architectures_from_configuration_list(configurations)
+        pytorch_architectures = get_architectures_from_configuration_list(pytorch_mappings, configurations)
+        tensorflow_architectures = get_architectures_from_configuration_list(tensorflow_mappings, configurations)
         processors = get_processor_mapping_from_configuration_list(configurations)
 
     processors_config_without_mapping = [k for k, v in processors.items() if v is None]
