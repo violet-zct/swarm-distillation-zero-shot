@@ -203,7 +203,7 @@ class ConversationalPipeline(Pipeline):
         postprocess_params = {}
 
         if min_length_for_response is not None:
-            preprocess_params["min_length_for_response"] = min_length_for_response
+            forward_params["min_length_for_response"] = min_length_for_response
         if minimum_tokens is not None:
             forward_params["minimum_tokens"] = minimum_tokens
 
