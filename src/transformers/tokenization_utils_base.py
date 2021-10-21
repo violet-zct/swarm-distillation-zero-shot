@@ -3475,8 +3475,8 @@ def get_fast_tokenizer_file(
             tokenizer_files_map[v] = file_name
     available_versions = sorted(tokenizer_files_map.keys())
 
-    # Defaults to FULL_TOKENIZER_FILE and then try to look at some newer versions.
-    tokenizer_file = FULL_TOKENIZER_FILE
+    # Defaults to TOKENIZER_CONFIG_FILE and then try to look at some newer versions.
+    tokenizer_file = TOKENIZER_CONFIG_FILE
     transformers_version = version.parse(__version__)
     for v in available_versions:
         if version.parse(v) <= transformers_version:
@@ -3484,7 +3484,7 @@ def get_fast_tokenizer_file(
         else:
             # No point going further since the versions are sorted.
             break
-
+    
     return tokenizer_file
 
 
