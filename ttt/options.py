@@ -43,6 +43,12 @@ class DataArguments:
         metadata={"help": "name of dataset"}
     )
 
+    prompt_set_name: str = field(metadata={"help": ""})  # same as dataset name?
+
+    overwrite_cache: bool = field(
+        default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
+    )
+
     task_type: Optional[str] = field(
         default="classification",
         metadata={"choices": ["generation", "classification"],
@@ -53,15 +59,9 @@ class DataArguments:
         default="test",
         metadata={"help": ""}
     )
-    overwrite_cache: bool = field(
-        default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
-    )
-
 
 @dataclass
 class TestArguments:
-    prompt_set_name: str = field(metadata={ "help": ""})  # same as dataset name?
-
     test_mode: str = field(
         default="t0",
         metadata={"choices": ["t0", "ttt_t0"],
