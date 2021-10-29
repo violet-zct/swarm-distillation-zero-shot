@@ -40,7 +40,7 @@ rm -rf ${SAVE}; mkdir -p ${SAVE}
 
 deepspeed examples/pytorch/t0-zero-shot/run_t0.py \
   --deepspeed deepspeed_configs/ds_config.json \
-  --dataset_name ${dataset} --prompt_set_name ${dataset} \
+  --dataset_name ${dataset} --prompt_set_name ${dataset} --testset_name ${testset_name} \
   --model_name_or_path ${model} --per_device_train_batch_size 1   \
   --test_mode ${test_mode} --cache_dir ${cache_dir} \
   --output_dir ${SAVE} --overwrite_output_dir --fp16 \
