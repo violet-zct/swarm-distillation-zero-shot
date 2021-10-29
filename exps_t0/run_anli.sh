@@ -9,7 +9,6 @@
 #SBATCH --time=0
 ##SBATCH --array=0
 
-
 source activate tride
 export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
 export HF_DATASETS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
@@ -40,7 +39,8 @@ SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
 deepspeed examples/pytorch/t0-zero-shot/run_t0.py \
-  --deepspeed deepspeed_configs/ds_config.json --dataset_name ${dataset}\
+  --deepspeed deepspeed_configs/ds_config.json \
+  --dataset_name ${dataset} --prompt_set_name ${dataset} \
   --model_name_or_path ${model} --per_device_train_batch_size 1   \
   --test_mode ${test_mode} --cache_dir ${cache_dir} \
   --output_dir ${SAVE} --overwrite_output_dir --fp16 \

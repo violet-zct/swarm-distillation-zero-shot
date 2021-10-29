@@ -8,10 +8,11 @@ class Task():
         self.cache_dir = cache_dir
         self.DATASET_NAME = args.dataset_name
         self.TESTSET_NAME = args.testset_name
+        self.PROMPTSET_NAME = args.prompt_set_name  # has subset name?
         self.task_type = args.task_type
         self.load()
 
-        self.prompts = DatasetTemplates(self.DATASET_NAME)
+        self.prompts = DatasetTemplates(self.PROMPTSET_NAME)
         self.original_task_prompts = self.extract_original_task_prompts()
         print("{} has {} original task prompts.".format(self.DATASET_NAME, len(self.original_task_prompts)))
 

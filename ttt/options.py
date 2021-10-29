@@ -60,7 +60,7 @@ class DataArguments:
 
 @dataclass
 class TestArguments:
-    prompt_set_name: str = field()  # same as dataset name?
+    prompt_set_name: str = field(metadata={ "help": ""})  # same as dataset name?
 
     test_mode: str = field(
         default="t0",

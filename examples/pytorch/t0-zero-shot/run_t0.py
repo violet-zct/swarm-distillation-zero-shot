@@ -2,6 +2,8 @@ import torch
 
 from transformers import AutoModelForSeq2SeqLM
 import numpy as np
+import sys
+sys.path.insert(2, "./")
 
 import datasets
 import transformers
@@ -19,7 +21,7 @@ from ttt.options import *
 from ttt.dataloader import Task
 
 import logging
-import sys
+
 
 # reload the t0 model after each test point or reset the biases when using bitfit;
 # prompt tuning looks easier
@@ -112,3 +114,12 @@ def main():
                                                                                  np.var(accuracies)))
     elif test_args.test_mode == "ttt_t0":
         pass
+
+
+def _mp_fn(index):
+    # For xla_spawn (TPUs)
+    main()
+
+
+if __name__ == "__main__":
+    main()
