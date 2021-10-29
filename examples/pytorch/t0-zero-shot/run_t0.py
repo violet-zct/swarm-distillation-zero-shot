@@ -93,6 +93,8 @@ def main():
                 for ii, (pin, pout) in enumerate(zip(prompted_test_output, prompted_test_output)):
                     input_ids = tokenizer.encode(pin, return_tensors="pt")#.input_ids
                     output_ids = tokenizer.encode(pout, return_tensors="pt")
+                    input_ids.to('cuda')
+                    output_ids.to('cuda')
                     with torch.no_grad():
                         if data_args.task_type == "classification":
                             # log-likelihood per sequence
