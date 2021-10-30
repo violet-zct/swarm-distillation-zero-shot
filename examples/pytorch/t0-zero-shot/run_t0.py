@@ -84,11 +84,11 @@ def main():
     if test_args.test_mode == "t0":
         predictions = [[] for _ in range(test_data.num_prompts)]
         golds = []
-        for pidx, (test_inputs, test_outputs, label) in enumerate(test_data):
+        for test_inputs, test_outputs, label in enumerate(test_data):
             if isinstance(test_inputs[0], list):
                 assert data_args.task_type == "classification"
             # single prompt
-            for prompted_test_input, prompted_test_output in zip(test_inputs, test_outputs):
+            for pidx, (prompted_test_input, prompted_test_output) in enumerate(zip(test_inputs, test_outputs)):
                 max_ll, pred = 0, -1
                 for ii, (pin, pout) in enumerate(zip(prompted_test_output, prompted_test_output)):
                     input_ids = tokenizer.encode(pin, return_tensors="pt")#.input_ids
