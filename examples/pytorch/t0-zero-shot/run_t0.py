@@ -53,8 +53,8 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size):
     all_loglikelihoods = []
     processed_batch = 0
     for bid1, bid2 in chunks(test_data.size, batch_size):
-        input_ids = tokenizer(input_dataset[bid1:bid2], return_tensors="pt")  # .input_ids
-        output_ids = tokenizer(output_dataset[bid1:bid2], return_tensors="pt")
+        input_ids = tokenizer(input_dataset[bid1:bid2], return_tensors="pt", padding=True, truncation=True)  # .input_ids
+        output_ids = tokenizer(output_dataset[bid1:bid2], return_tensors="pt", padding=True, truncation=True)
         input_ids.to('cuda')
         output_ids.to('cuda')
 
