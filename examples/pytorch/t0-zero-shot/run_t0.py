@@ -28,6 +28,67 @@ import logging
 #
 logger = logging.getLogger(__name__)
 
+
+def chunks(tot, bsz):
+    batches = [(i, i+bsz if i+bsz < tot else tot) for i in range(0, tot, bsz)]
+    return batches
+
+def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size):
+    golds = []
+    input_dataset = []
+    output_dataset = []
+    choice_nums = []
+    for sidx in range(test_data.size):
+        test_inputs, test_outputs, label = test_data[sidx]
+        if isinstance(test_inputs[0], list):
+            assert data_args.task_type == "classification"
+        # single prompt
+        for pidx, (prompted_test_input, prompted_test_output) in enumerate(zip(test_inputs, test_outputs)):
+            for ii, (pin, pout) in enumerate(zip(prompted_test_output, prompted_test_output)):
+                input_dataset.append(pin)
+                output_dataset.append(pout)
+            choice_nums.append(len(prompted_test_input))
+        golds.append(label)
+
+    all_loglikelihoods = []
+    processed_batch = 0
+    for bid1, bid2 in chunks(test_data.size, batch_size):
+        input_ids = tokenizer.encode(input_dataset[bid1:bid2], return_tensors="pt")  # .input_ids
+        output_ids = tokenizer.encode(output_dataset[bid1:bid2], return_tensors="pt")
+        input_ids.to('cuda')
+        output_ids.to('cuda')
+
+        with torch.no_grad():
+            if data_args.task_type == "classification":
+                # log-likelihood per sequence
+                ll = -model.forward(input_ids=input_ids, labels=output_ids).loss
+                all_loglikelihoods.extend(ll)
+            else:
+                # it seems that there is no actual generation tasks in T0 evaluation
+                decoded = model.generate(input)
+        processed_batch += 1
+        if processed_batch % 10 == 0:
+            logger.info("evaluating {} batches of test examples".format(processed_batch))
+
+    predictions = [[] for _ in range(test_data.num_prompts)]
+    idx = 0
+    for eidx in range(test_data.size):
+        for pidx in range(test_data.num_prompts):
+            max_ll, pred_label = -np.inf, -1
+            for ii in range(choice_nums[eidx * test_data + pidx]):
+                idx += 1
+                if all_loglikelihoods[ii] > max_ll:
+                    max_ll, pred_label = all_loglikelihoods[ii], ii
+            predictions[pidx].append(pred_label)
+
+    accuracies = []
+    for ppred in predictions:
+        accuracies.append(sum(np.array(ppred) == np.array(golds)) * 1.0 / len(golds))
+    logger.info("median accuracy = {}, max acc = {}, min acc ={}, var = {}".format(np.median(accuracies),
+                                                                             np.max(accuracies),
+                                                                             np.min(accuracies),
+                                                                             np.var(accuracies)))
+
 def evalute_t0(model, tokenizer, test_data, data_args):
     predictions = [[] for _ in range(test_data.num_prompts)]
     golds = []
@@ -37,7 +98,7 @@ def evalute_t0(model, tokenizer, test_data, data_args):
             assert data_args.task_type == "classification"
         # single prompt
         for pidx, (prompted_test_input, prompted_test_output) in enumerate(zip(test_inputs, test_outputs)):
-            max_ll, pred = 0, -1
+            max_ll, pred = -np.Inf, -1
             for ii, (pin, pout) in enumerate(zip(prompted_test_output, prompted_test_output)):
                 input_ids = tokenizer.encode(pin, return_tensors="pt")  # .input_ids
                 output_ids = tokenizer.encode(pout, return_tensors="pt")
@@ -46,7 +107,7 @@ def evalute_t0(model, tokenizer, test_data, data_args):
                 with torch.no_grad():
                     if data_args.task_type == "classification":
                         # log-likelihood per sequence
-                        ll = -model.forward(input_ids=input_ids, labels=output_ids).loss
+                        ll = -model.forward(input_ids=input_ids, labels=output_ids).loss.item()
                         if ll > max_ll:
                             pred = ii
                             max_ll = ll
@@ -61,9 +122,9 @@ def evalute_t0(model, tokenizer, test_data, data_args):
     for ppred in predictions:
         accuracies.append(sum(np.array(ppred) == np.array(golds)) * 1.0 / len(golds))
     logger.info("median accuracy = {}, max acc = {}, min acc ={}, var = {}".format(np.median(accuracies),
-                                                                             np.max(accuracies),
-                                                                             np.min(accuracies),
-                                                                             np.var(accuracies)))
+                                                                                   np.max(accuracies),
+                                                                                   np.min(accuracies),
+                                                                                   np.var(accuracies)))
 
 def main():
     parser = HfArgumentParser((ModelArguments, DataArguments, TrainingArguments, TestArguments))
@@ -118,7 +179,7 @@ def main():
     # without batching, to batch, collect all the processed examples first
     # todo: make this a function
     if test_args.test_mode == "t0":
-        evalute_t0(model, tokenizer, test_data, data_args)
+        batched_evalute_t0(model, tokenizer, test_data, data_args, training_args.per_gpu_eval_batch_size)
     elif test_args.test_mode == "ttt_t0":
         pass
 

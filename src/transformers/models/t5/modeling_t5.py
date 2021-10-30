@@ -1638,7 +1638,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         loss = None
         if labels is not None:
             if hasattr(self.config, "test_mode"):
-                loss_fct = CrossEntropyLoss(ignore_index=-100, reduction='sum')
+                loss_fct = CrossEntropyLoss(ignore_index=-100, reduction='none')
             else:
                 loss_fct = CrossEntropyLoss(ignore_index=-100)
             loss = loss_fct(lm_logits.view(-1, lm_logits.size(-1)), labels.view(-1))
