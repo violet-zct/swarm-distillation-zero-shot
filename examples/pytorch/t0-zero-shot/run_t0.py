@@ -52,16 +52,24 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size):
 
     all_loglikelihoods = []
     processed_batch = 0
+    print(tokenizer.get_vocab()[0], tokenizer.get_vocab()[1], tokenizer.get_vocab()[2])
     for bid1, bid2 in chunks(test_data.size, batch_size):
-        input_ids = tokenizer(input_dataset[bid1:bid2], return_tensors="pt", padding=True, truncation=True)  # .input_ids
-        output_ids = tokenizer(output_dataset[bid1:bid2], return_tensors="pt", padding=True, truncation=True)
+        tokenized_input = tokenizer(input_dataset[bid1:bid2], return_tensors="pt", padding='longest', truncation=True)
+        input_ids, attention_mask = tokenized_input.input_ids, tokenized_input.attention_mask
+        output_ids = tokenizer(output_dataset[bid1:bid2], return_tensors="pt", padding='longest', truncation=True).input_ids
+        output_ids = torch.tensor([[(l if l != tokenizer.pad_token_id else -100) for l in x] for x in output_ids])
+
+        # fixme: deepspeed offload to cpu, which device should the inputs be put on?
+        attention_mask.to('cuda')
         input_ids.to('cuda')
         output_ids.to('cuda')
 
         with torch.no_grad():
             if data_args.task_type == "classification":
                 # log-likelihood per sequence
-                ll = -model.forward(input_ids=input_ids, labels=output_ids).loss
+                ll = -model.forward(input_ids=input_ids, labels=output_ids, attention_mask=attention_mask).loss
+                ll = ll.view(output_ids.size())
+                print(ll, ll.size())
                 all_loglikelihoods.extend(ll)
             else:
                 # it seems that there is no actual generation tasks in T0 evaluation
