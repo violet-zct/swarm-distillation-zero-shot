@@ -14,7 +14,9 @@ class Task():
 
         self.prompts = DatasetTemplates(self.PROMPTSET_NAME)
         self.original_task_prompts = self.extract_original_task_prompts()
-        print("{} has {} original task prompts.".format(self.DATASET_NAME, len(self.original_task_prompts)))
+        print("{} has {} original task prompts, total test examples = {}".format(self.DATASET_NAME,
+                                                                                 len(self.original_task_prompts),
+                                                                                 self.size))
 
     def load(self):
         self.data = datasets.load_dataset(self.DATASET_NAME, cache_dir=self.cache_dir)[self.TESTSET_NAME]

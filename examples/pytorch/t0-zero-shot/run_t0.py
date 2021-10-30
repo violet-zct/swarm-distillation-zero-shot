@@ -54,11 +54,13 @@ def evalute_t0(model, tokenizer, test_data, data_args):
                         # it seems that there is no actual generation tasks in T0 evaluation
                         decoded = model.generate(input)
             predictions[pidx].append(pred)
+        if sidx % 100 == 0:
+            logger.info("evaluating {}-th test examples".format(sidx))
         golds.append(label)
     accuracies = []
     for ppred in predictions:
         accuracies.append(sum(np.array(ppred) == np.array(golds)) * 1.0 / len(golds))
-    print("median accuracy = {}, max acc = {}, min acc ={}, var = {}".format(np.median(accuracies),
+    logger.info("median accuracy = {}, max acc = {}, min acc ={}, var = {}".format(np.median(accuracies),
                                                                              np.max(accuracies),
                                                                              np.min(accuracies),
                                                                              np.var(accuracies)))
