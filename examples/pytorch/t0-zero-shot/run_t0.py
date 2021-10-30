@@ -28,6 +28,40 @@ import logging
 #
 logger = logging.getLogger(__name__)
 
+def evalute_t0(model, tokenizer, test_data, data_args):
+    predictions = [[] for _ in range(test_data.num_prompts)]
+    golds = []
+    for sidx in range(test_data.size):
+        test_inputs, test_outputs, label = test_data[sidx]
+        if isinstance(test_inputs[0], list):
+            assert data_args.task_type == "classification"
+        # single prompt
+        for pidx, (prompted_test_input, prompted_test_output) in enumerate(zip(test_inputs, test_outputs)):
+            max_ll, pred = 0, -1
+            for ii, (pin, pout) in enumerate(zip(prompted_test_output, prompted_test_output)):
+                input_ids = tokenizer.encode(pin, return_tensors="pt")  # .input_ids
+                output_ids = tokenizer.encode(pout, return_tensors="pt")
+                input_ids.to('cuda')
+                output_ids.to('cuda')
+                with torch.no_grad():
+                    if data_args.task_type == "classification":
+                        # log-likelihood per sequence
+                        ll = -model.forward(input_ids=input_ids, labels=output_ids).loss
+                        if ll > max_ll:
+                            pred = ii
+                            max_ll = ll
+                    else:
+                        # it seems that there is no actual generation tasks in T0 evaluation
+                        decoded = model.generate(input)
+            predictions[pidx].append(pred)
+        golds.append(label)
+    accuracies = []
+    for ppred in predictions:
+        accuracies.append(sum(np.array(ppred) == np.array(golds)) * 1.0 / len(golds))
+    print("median accuracy = {}, max acc = {}, min acc ={}, var = {}".format(np.median(accuracies),
+                                                                             np.max(accuracies),
+                                                                             np.min(accuracies),
+                                                                             np.var(accuracies)))
 
 def main():
     parser = HfArgumentParser((ModelArguments, DataArguments, TrainingArguments, TestArguments))
@@ -82,38 +116,7 @@ def main():
     # without batching, to batch, collect all the processed examples first
     # todo: make this a function
     if test_args.test_mode == "t0":
-        predictions = [[] for _ in range(test_data.num_prompts)]
-        golds = []
-        for test_inputs, test_outputs, label in enumerate(test_data):
-            if isinstance(test_inputs[0], list):
-                assert data_args.task_type == "classification"
-            # single prompt
-            for pidx, (prompted_test_input, prompted_test_output) in enumerate(zip(test_inputs, test_outputs)):
-                max_ll, pred = 0, -1
-                for ii, (pin, pout) in enumerate(zip(prompted_test_output, prompted_test_output)):
-                    input_ids = tokenizer.encode(pin, return_tensors="pt")#.input_ids
-                    output_ids = tokenizer.encode(pout, return_tensors="pt")
-                    input_ids.to('cuda')
-                    output_ids.to('cuda')
-                    with torch.no_grad():
-                        if data_args.task_type == "classification":
-                            # log-likelihood per sequence
-                            ll = -model.forward(input_ids=input_ids, labels=output_ids).loss
-                            if ll > max_ll:
-                                pred = ii
-                                max_ll = ll
-                        else:
-                            # it seems that there is no actual generation tasks in T0 evaluation
-                            decoded = model.generate(input)
-                predictions[pidx].append(pred)
-            golds.append(label)
-        accuracies = []
-        for ppred in predictions:
-            accuracies.append(sum(np.array(ppred) == np.array(golds)) * 1.0 / len(golds))
-        print("median accuracy = {}, max acc = {}, min acc ={}, var = {}".format(np.median(accuracies),
-                                                                                 np.max(accuracies),
-                                                                                 np.min(accuracies),
-                                                                                 np.var(accuracies)))
+        evalute_t0(model, tokenizer, test_data, data_args)
     elif test_args.test_mode == "ttt_t0":
         pass
 

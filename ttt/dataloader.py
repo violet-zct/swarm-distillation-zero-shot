@@ -23,6 +23,10 @@ class Task():
     def num_prompts(self):
         return len(self.original_task_prompts)
 
+    @property
+    def size(self):
+        return len(self.data)
+
     def __getitem__(self, idx):
         item = self.data[idx]
         inputs = []
