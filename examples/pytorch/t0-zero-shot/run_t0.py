@@ -44,7 +44,7 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size):
             assert data_args.task_type == "classification"
         # single prompt
         for pidx, (prompted_test_input, prompted_test_output) in enumerate(zip(test_inputs, test_outputs)):
-            for ii, (pin, pout) in enumerate(zip(prompted_test_output, prompted_test_output)):
+            for ii, (pin, pout) in enumerate(zip(prompted_test_input, prompted_test_output)):
                 input_dataset.append(pin)
                 output_dataset.append(pout)
             choice_nums.append(len(prompted_test_input))
@@ -53,8 +53,8 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size):
     all_loglikelihoods = []
     processed_batch = 0
     for bid1, bid2 in chunks(test_data.size, batch_size):
-        input_ids = tokenizer.encode(input_dataset[bid1:bid2], return_tensors="pt")  # .input_ids
-        output_ids = tokenizer.encode(output_dataset[bid1:bid2], return_tensors="pt")
+        input_ids = tokenizer(input_dataset[bid1:bid2], return_tensors="pt")  # .input_ids
+        output_ids = tokenizer(output_dataset[bid1:bid2], return_tensors="pt")
         input_ids.to('cuda')
         output_ids.to('cuda')
 
@@ -99,7 +99,7 @@ def evalute_t0(model, tokenizer, test_data, data_args):
         # single prompt
         for pidx, (prompted_test_input, prompted_test_output) in enumerate(zip(test_inputs, test_outputs)):
             max_ll, pred = -np.Inf, -1
-            for ii, (pin, pout) in enumerate(zip(prompted_test_output, prompted_test_output)):
+            for ii, (pin, pout) in enumerate(zip(prompted_test_input, prompted_test_output)):
                 input_ids = tokenizer.encode(pin, return_tensors="pt")  # .input_ids
                 output_ids = tokenizer.encode(pout, return_tensors="pt")
                 input_ids.to('cuda')
