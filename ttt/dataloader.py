@@ -7,6 +7,7 @@ class Task():
     def __init__(self, args, cache_dir):
         self.cache_dir = cache_dir
         self.DATASET_NAME = args.dataset_name
+        self.SUBSET_NAME = args.subset_name
         self.TESTSET_NAME = args.testset_name
         self.PROMPTSET_NAME = args.prompt_set_name  # has subset name?
         self.task_type = args.task_type
@@ -19,7 +20,7 @@ class Task():
                                                                                  self.size))
 
     def load(self):
-        self.data = datasets.load_dataset(self.DATASET_NAME, cache_dir=self.cache_dir)[self.TESTSET_NAME]
+        self.data = datasets.load_dataset(self.DATASET_NAME, self.SUBSET_NAME, cache_dir=self.cache_dir)[self.TESTSET_NAME]
 
     @property
     def num_prompts(self):

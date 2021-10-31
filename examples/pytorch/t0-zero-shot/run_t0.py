@@ -57,7 +57,7 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size):
     vocab = tokenizer.get_vocab()
     vocab = {v:k for k, v in vocab.items()}
     print(vocab[0], vocab[1], vocab[2])
-    for bid1, bid2 in chunks(test_data.size, batch_size):
+    for bid1, bid2 in chunks(len(input_dataset), batch_size):
         tokenized_input = tokenizer(input_dataset[bid1:bid2], return_tensors="pt", padding='longest', truncation=True)
         input_ids, attention_mask = tokenized_input.input_ids, tokenized_input.attention_mask
         output_ids = tokenizer(output_dataset[bid1:bid2], return_tensors="pt", padding='longest', truncation=True).input_ids
@@ -65,7 +65,6 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size):
         output_ids = torch.tensor([[(l if l != tokenizer.pad_token_id else -100) for l in x] for x in output_ids])
 
         # fixme: deepspeed offload to cpu, which device should the inputs be put on?
-        print(model.device)
         attention_mask = attention_mask.to(model.device)
         input_ids = input_ids.to(model.device)
         output_ids = output_ids.to(model.device)
@@ -89,18 +88,20 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size):
     for eidx in range(test_data.size):
         for pidx in range(test_data.num_prompts):
             max_ll, pred_label = -np.inf, -1
-            for ii in range(choice_nums[eidx * test_data + pidx]):
+            # actually, the number of labels of each should be the same
+            for ii in range(choice_nums[eidx * test_data.num_prompts + pidx]):
+                if all_loglikelihoods[idx] > max_ll:
+                    max_ll, pred_label = all_loglikelihoods[idx], ii
                 idx += 1
-                if all_loglikelihoods[ii] > max_ll:
-                    max_ll, pred_label = all_loglikelihoods[ii], ii
             predictions[pidx].append(pred_label)
 
     accuracies = []
     for ppred in predictions:
         accuracies.append(sum(np.array(ppred) == np.array(golds)) * 1.0 / len(golds))
-    logger.info("median accuracy = {}, max acc = {}, min acc ={}, var = {}".format(np.median(accuracies),
+    logger.info("median accuracy = {}, max acc = {}, min acc ={}, mean = {}, var = {}".format(np.median(accuracies),
                                                                              np.max(accuracies),
                                                                              np.min(accuracies),
+                                                                             np.mean(accuracies),
                                                                              np.var(accuracies)))
 
 def evalute_t0(model, tokenizer, test_data, data_args):
@@ -136,9 +137,10 @@ def evalute_t0(model, tokenizer, test_data, data_args):
     accuracies = []
     for ppred in predictions:
         accuracies.append(sum(np.array(ppred) == np.array(golds)) * 1.0 / len(golds))
-    logger.info("median accuracy = {}, max acc = {}, min acc ={}, var = {}".format(np.median(accuracies),
+    logger.info("median accuracy = {}, max acc = {}, min acc ={}, mean = {}, var = {}".format(np.median(accuracies),
                                                                                    np.max(accuracies),
                                                                                    np.min(accuracies),
+                                                                                   np.mean(accuracies),
                                                                                    np.var(accuracies)))
 
 def main():
