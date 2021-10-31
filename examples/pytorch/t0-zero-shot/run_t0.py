@@ -66,9 +66,9 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size):
 
         # fixme: deepspeed offload to cpu, which device should the inputs be put on?
         print(model.device)
-        attention_mask.to(model.device)
-        input_ids.to(model.device)
-        output_ids.to(model.device)
+        attention_mask = attention_mask.to(model.device)
+        input_ids = input_ids.to(model.device)
+        output_ids = output_ids.to(model.device)
 
         with torch.no_grad():
             if data_args.task_type == "classification":
@@ -117,8 +117,8 @@ def evalute_t0(model, tokenizer, test_data, data_args):
             for ii, (pin, pout) in enumerate(zip(prompted_test_input, prompted_test_output)):
                 input_ids = tokenizer.encode(pin, return_tensors="pt")  # .input_ids
                 output_ids = tokenizer.encode(pout, return_tensors="pt")
-                input_ids.to(model.device)
-                output_ids.to(model.device)
+                input_ids = input_ids.to(model.device)
+                output_ids = output_ids.to(model.device)
                 with torch.no_grad():
                     if data_args.task_type == "classification":
                         # log-likelihood per sequence
