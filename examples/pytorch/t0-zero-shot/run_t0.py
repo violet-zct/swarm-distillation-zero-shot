@@ -39,7 +39,7 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size):
     output_dataset = []
     choice_nums = []
 
-    model.half().to('cuda')
+    model.half().to(torch.cuda.current_device())
     for sidx in range(test_data.size):
         test_inputs, test_outputs, label = test_data[sidx]
         if isinstance(test_inputs[0], list):
@@ -106,7 +106,7 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size):
 def evalute_t0(model, tokenizer, test_data, data_args):
     predictions = [[] for _ in range(test_data.num_prompts)]
     golds = []
-    model.half().to('cuda')
+    model.half().to(torch.cuda.current_device())
     for sidx in range(test_data.size):
         test_inputs, test_outputs, label = test_data[sidx]
         if isinstance(test_inputs[0], list):
@@ -117,8 +117,8 @@ def evalute_t0(model, tokenizer, test_data, data_args):
             for ii, (pin, pout) in enumerate(zip(prompted_test_input, prompted_test_output)):
                 input_ids = tokenizer.encode(pin, return_tensors="pt")  # .input_ids
                 output_ids = tokenizer.encode(pout, return_tensors="pt")
-                input_ids.to('cuda')
-                output_ids.to('cuda')
+                input_ids.to(model.device)
+                output_ids.to(model.device)
                 with torch.no_grad():
                     if data_args.task_type == "classification":
                         # log-likelihood per sequence
