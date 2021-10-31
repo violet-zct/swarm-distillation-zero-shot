@@ -59,7 +59,7 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size):
         tokenized_input = tokenizer(input_dataset[bid1:bid2], return_tensors="pt", padding='longest', truncation=True)
         input_ids, attention_mask = tokenized_input.input_ids, tokenized_input.attention_mask
         output_ids = tokenizer(output_dataset[bid1:bid2], return_tensors="pt", padding='longest', truncation=True).input_ids
-        target_mask = torch.tensor([len([1. if l != tokenizer.pad_token_id and l != tokenizer.eos_token_id else 0. for l in x]) for x in output_ids]).float()
+        target_mask = torch.tensor([[1. if l != tokenizer.pad_token_id and l != tokenizer.eos_token_id else 0. for l in x] for x in output_ids]).float()
         output_ids = torch.tensor([[(l if l != tokenizer.pad_token_id else -100) for l in x] for x in output_ids])
 
         # fixme: deepspeed offload to cpu, which device should the inputs be put on?
