@@ -65,9 +65,10 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size):
         output_ids = torch.tensor([[(l if l != tokenizer.pad_token_id else -100) for l in x] for x in output_ids])
 
         # fixme: deepspeed offload to cpu, which device should the inputs be put on?
-        attention_mask.to('cuda')
-        input_ids.to('cuda')
-        output_ids.to('cuda')
+        print(model.device)
+        attention_mask.to(model.device)
+        input_ids.to(model.device)
+        output_ids.to(model.device)
 
         with torch.no_grad():
             if data_args.task_type == "classification":
