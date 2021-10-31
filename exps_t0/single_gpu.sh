@@ -37,9 +37,9 @@ testset_name="test_r1"
 dataset="super_glue"
 subset="cb"
 bsz=50
-test_mode="t0"
 testset_name="test"
 
+test_mode="t0"
 model="bigscience/T0_3B"
 model="bigscience/T0pp"
 

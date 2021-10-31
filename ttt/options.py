@@ -50,7 +50,7 @@ class DataArguments:
     )
 
     subset_name: Optional[str] = field(
-        default=None,
+        default="none",
         metadata={"help": "name of dataset, e.g. "}
     )
 

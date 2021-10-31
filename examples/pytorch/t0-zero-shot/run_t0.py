@@ -88,7 +88,7 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size):
     for eidx in range(test_data.size):
         for pidx in range(test_data.num_prompts):
             max_ll, pred_label = -np.inf, -1
-            # actually, the number of labels of each should be the same
+            # actually, the number of labels of each prompt should be the same
             for ii in range(choice_nums[eidx * test_data.num_prompts + pidx]):
                 if all_loglikelihoods[idx] > max_ll:
                     max_ll, pred_label = all_loglikelihoods[idx], ii
