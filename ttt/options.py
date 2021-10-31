@@ -40,13 +40,18 @@ class ModelArguments:
 @dataclass
 class DataArguments:
     dataset_name: str = field(
-        metadata={"help": "name of dataset"}
+        metadata={"help": "name of dataset, e.g. super_glue"}
     )
 
     prompt_set_name: str = field(metadata={"help": ""})  # same as dataset name?
 
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
+    )
+
+    subset_name: Optional[str] = field(
+        default=None,
+        metadata={"help": "name of dataset, e.g. "}
     )
 
     task_type: Optional[str] = field(
