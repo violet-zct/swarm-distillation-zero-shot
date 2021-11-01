@@ -33,6 +33,7 @@ def chunks(tot, bsz):
     batches = [(i, i+bsz if i+bsz < tot else tot) for i in range(0, tot, bsz)]
     return batches
 
+
 def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16):
     golds = []
     input_dataset = []
@@ -200,7 +201,7 @@ def main():
     # without batching, to batch, collect all the processed examples first
     # todo: make this a function
     if test_args.test_mode == "t0":
-        batched_evalute_t0(model, tokenizer, test_data, data_args, training_args.per_gpu_eval_batch_size)
+        batched_evalute_t0(model, tokenizer, test_data, data_args, training_args.per_gpu_eval_batch_size, training_args.fp16)
     elif test_args.test_mode == "ttt_t0":
         pass
 
