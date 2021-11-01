@@ -40,6 +40,7 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size):
     choice_nums = []
 
     model.half().to(torch.cuda.current_device())
+    model.eval()
     for sidx in range(test_data.size):
         test_inputs, test_outputs, label = test_data[sidx]
         if isinstance(test_inputs[0], list):
@@ -108,6 +109,7 @@ def evalute_t0(model, tokenizer, test_data, data_args):
     predictions = [[] for _ in range(test_data.num_prompts)]
     golds = []
     model.half().to(torch.cuda.current_device())
+    model.eval()
     for sidx in range(test_data.size):
         test_inputs, test_outputs, label = test_data[sidx]
         if isinstance(test_inputs[0], list):
