@@ -21,7 +21,7 @@ from ttt.options import *
 from ttt.dataloader import Task
 
 import logging
-
+import deepspeed
 
 # reload the t0 model after each test point or reset the biases when using bitfit;
 # prompt tuning looks easier
@@ -34,16 +34,24 @@ def chunks(tot, bsz):
     return batches
 
 
-def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16):
+def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16, use_deepspeed=False):
     golds = []
     input_dataset = []
     output_dataset = []
     choice_nums = []
 
-    if fp16:
-        model = model.half()
-    model = model.to(torch.cuda.current_device())
-    model.eval()
+    if use_deepspeed:
+        print("world size = {}".format(torch.distributed.get_world_size()))
+        model = deepspeed.init_inference(model, mp_size=torch.distributed.get_world_size(),
+                                         dtype=torch.half if fp16 else torch.float,
+                                         checkpoint=None,
+                                         replace_method='auto')
+    else:
+        model.eval()
+        if fp16:
+            model = model.half()
+        model = model.to(torch.cuda.current_device())
+
     for sidx in range(test_data.size):
         test_inputs, test_outputs, label = test_data[sidx]
         if isinstance(test_inputs[0], list):
@@ -201,7 +209,8 @@ def main():
     # without batching, to batch, collect all the processed examples first
     # todo: make this a function
     if test_args.test_mode == "t0":
-        batched_evalute_t0(model, tokenizer, test_data, data_args, training_args.per_gpu_eval_batch_size, training_args.fp16)
+        batched_evalute_t0(model, tokenizer, test_data, data_args, training_args.per_gpu_eval_batch_size,
+                           training_args.fp16, test_args.use_deepspeed)
     elif test_args.test_mode == "ttt_t0":
         pass
 

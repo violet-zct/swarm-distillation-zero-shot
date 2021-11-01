@@ -79,6 +79,10 @@ class TestArguments:
                 "help": ""}
     )
 
+    use_deepspeed: Optional[bool] = field(
+        default=False,
+    )
+
     prompt_tuning_L: Optional[int] = field(
         default=3,
         metadata={
