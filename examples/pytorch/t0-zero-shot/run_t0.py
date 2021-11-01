@@ -33,13 +33,15 @@ def chunks(tot, bsz):
     batches = [(i, i+bsz if i+bsz < tot else tot) for i in range(0, tot, bsz)]
     return batches
 
-def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size):
+def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16):
     golds = []
     input_dataset = []
     output_dataset = []
     choice_nums = []
 
-    model.half().to(torch.cuda.current_device())
+    if fp16:
+        model = model.half()
+    model = model.to(torch.cuda.current_device())
     model.eval()
     for sidx in range(test_data.size):
         test_inputs, test_outputs, label = test_data[sidx]
