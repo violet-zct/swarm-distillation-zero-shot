@@ -811,7 +811,7 @@ class T5Stack(T5PreTrainedModel):
         if not self.is_decoder and hasattr(config, 'peft_option') and config.peft_option == 'prompt_tuning':
             self.ef_prefix_emb = nn.Embedding(config.prompt_tuning_L, config.d_model)
             self.ef_prefix_emb.weight.data.normal_(mean=0.0, std=0.02)  # todo: init with random vocab words
-            self.ef_prefix_input_tokens = torch.arange(config.preseqlen).long()
+            self.ef_prefix_input_tokens = torch.arange(config.prompt_tuning_L).long()
         else:
             self.ef_prefix_emb = None
 
@@ -927,7 +927,7 @@ class T5Stack(T5PreTrainedModel):
                 if not self.training and attention_mask.size(1) == input_ids.size(1):
                     # generation time
                     attention_mask = torch.cat(
-                        [torch.ones(bsz, self.config.preseqlen).to(input_ids.device),
+                        [torch.ones(bsz, self.config.prompt_tuning_L).to(input_ids.device),
                          attention_mask], dim=1)
                 seq_length += prefix_embs.size()
 

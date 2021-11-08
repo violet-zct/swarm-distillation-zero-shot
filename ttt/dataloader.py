@@ -54,14 +54,14 @@ class DatasetByPrompt(Dataset):
         # return inputs, outputs, item['label']
         model_inputs = self.tokenizer(inputs, padding=False, truncation=True)
         outputs_ids = self.tokenizer(outputs,  padding=False, truncation=True).input_ids
-        model_inputs['labels'] = torch.tensor([[self.tokenizer.pad_token_id] +
-                                               [l if l != self.tokenizer.pad_token_id else -100 for l in x] for x in outputs_ids])
+        model_inputs['labels'] = [[self.tokenizer.pad_token_id] +
+                                  [l if l != self.tokenizer.pad_token_id else -100 for l in x] for x in outputs_ids]
 
         results = [{
             'input_ids': input_id,
-            'attnetion_masks': amask,
+            'attention_mask': amask,
             'labels': label,
-        } for input_id, amask, label in zip(model_inputs['input_ids'], model_inputs['attention_masks'], model_inputs['labels'])]
+        } for input_id, amask, label in zip(model_inputs['input_ids'], model_inputs['attention_mask'], model_inputs['labels'])]
         return results, item['label']
 
     def set_num_choices(self, n):
@@ -77,7 +77,7 @@ class DatasetByPrompt(Dataset):
 class TTTDataset(Dataset):
     def __init__(self, test_dataset, test_args, idx=-1):
         super().__init__()
-        train_data_form = test_args["train_data_source"]
+        train_data_form = test_args.train_data_source
         self.num_choices = test_dataset.num_choices
         self.num_prompts = test_dataset.num_prompts
 
