@@ -31,19 +31,20 @@ export WANDB_WATCH="false"
 
 DATE=`date +%Y%m%d`
 
-dataset="glue"
+dataset="super_glue"
 subset="rte"
 pbsz=2
-testset_name="test_r1"
+testset_name="test"
 
-peft="prompt"
+peft="prompt_tuning"
 pL=3
 test_mode="ttt_t0"
-model="bigscience/T0_pp"
+model="bigscience/T0pp"
 
 exp_name=${test_mode}.${dataset}.${subset}.${testset_name}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
+cp ${0} ${SAVE}/run.sh
 
 deepspeed --num_gpus=4 examples/pytorch/t0-zero-shot/run_t0.py \
   --deepspeed deepspeed_configs/ds_config.json \

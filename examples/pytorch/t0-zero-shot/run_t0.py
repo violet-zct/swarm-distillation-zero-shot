@@ -159,7 +159,7 @@ def main():
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
     )
-    test_data = DatasetByPrompt(data_args, model_args.cache_di, tokenizer)
+    test_data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer)
 
     if test_args.test_mode == "t0":
         model = AutoModelForSeq2SeqLM.from_pretrained(
@@ -172,10 +172,8 @@ def main():
         )
         model.resize_token_embeddings(len(tokenizer))
         batched_evalute_t0(model, tokenizer, test_data, data_args, training_args.per_gpu_eval_batch_size,
-                           training_args.fp16, test_args.use_deepspeed)
+                           training_args.fp16)
     elif test_args.test_mode == "ttt_t0":
-        prompted_testset = DatasetByPrompt
-
         def _model_init():
             model = AutoModelForSeq2SeqLM.from_pretrained(
                 model_args.model_name_or_path,
@@ -195,9 +193,9 @@ def main():
         )
 
         # if test_args.train_data_source == "stream": todo: support unlimited
-        for i in range(len(prompted_testset)):
+        for i in range(len(test_data)):
             # create dataset for one example
-            test_dataset = TTTDataset(prompted_testset, test_args, idx=i)
+            test_dataset = TTTDataset(test_data, test_args, idx=i)
             # init trainer
             trainer = Trainer(
                 model_init=_model_init,

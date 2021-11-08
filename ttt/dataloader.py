@@ -22,7 +22,7 @@ class DatasetByPrompt(Dataset):
         self.original_task_prompts = self.extract_original_task_prompts()
         print("{} has {} original task prompts, total test examples = {}".format(self.DATASET_NAME + ("/" + self.SUBSET_NAME) if self.SUBSET_NAME is not None else "",
                                                                                  len(self.original_task_prompts),
-                                                                                 self.size))
+                                                                                 len(self)))
 
     def load(self):
         self.dataset = datasets.load_dataset(self.DATASET_NAME, self.SUBSET_NAME, cache_dir=self.cache_dir)[self.TESTSET_NAME]
