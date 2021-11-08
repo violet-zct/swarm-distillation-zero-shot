@@ -607,11 +607,13 @@ class Trainer:
                     seed=self.args.seed,
                 )
             else:
+                logger.info("build train sampler!")
                 return DistributedSampler(
                     self.train_dataset,
                     num_replicas=self.args.world_size,
                     rank=self.args.process_index,
                     seed=self.args.seed,
+                    shuffle=True,
                 )
 
     def get_train_dataloader(self) -> DataLoader:
@@ -1884,11 +1886,20 @@ class Trainer:
         if self.args.past_index >= 0:
             self._past = outputs[self.args.past_index]
 
-        if labels is not None:
-            loss = self.label_smoother(outputs, labels)
+        if self.args.test_mode == 'ttt_t0':
+            logprobs = -outputs.loss
+            num_targets = self.train_dataset.num_choices
+            assert len(logprobs) % num_targets == 0
+            probs = logprobs.exp().view(-1, num_targets)
+            normalized_probs = probs / (probs.sum(1, keepdims=True))
+            marginal_probs = normalized_probs.mean(0)
+            loss = -(marginal_probs * marginal_probs.log()).sum()
         else:
-            # We don't use .loss here since the model may return tuples instead of ModelOutput.
-            loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
+            if labels is not None:
+                loss = self.label_smoother(outputs, labels)
+            else:
+                # We don't use .loss here since the model may return tuples instead of ModelOutput.
+                loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
 
         return (loss, outputs) if return_outputs else loss
 

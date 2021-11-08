@@ -529,6 +529,10 @@ class DataCollatorForSeq2Seq:
 
         if return_tensors is None:
             return_tensors = self.return_tensors
+
+        if isinstance(features[0], List):
+            features = [feature for example in features for feature in example]
+
         labels = [feature["labels"] for feature in features] if "labels" in features[0].keys() else None
         # We have to pad the labels before calling `tokenizer.pad` as this method won't pad them and needs them of the
         # same length to return tensors.

@@ -73,6 +73,17 @@ class TestArguments:
                   "help": ""}
     )
 
+    train_data_source: Optional[str] = field(
+        default="stream",
+        metadata={"choices": ["stream", "unlimited"],
+                  "help": "stream trains on one single test data"}
+    )
+
+    train_duplicates: Optional[int] = field(
+        default=1,
+        metadata={"help": "> 1 to create larger batch size"}
+    )
+
     peft_option: str = field(
         default="bitfit",
         metadata={"choices": ["prompt_tuning", "bitfit"],

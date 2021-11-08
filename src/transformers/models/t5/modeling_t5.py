@@ -808,6 +808,13 @@ class T5Stack(T5PreTrainedModel):
         self.embed_tokens = embed_tokens
         self.is_decoder = config.is_decoder
 
+        if not self.is_decoder and hasattr(config, 'peft_option') and config.peft_option == 'prompt_tuning':
+            self.ef_prefix_emb = nn.Embedding(config.prompt_tuning_L, config.d_model)
+            self.ef_prefix_emb.weight.data.normal_(mean=0.0, std=0.02)  # todo: init with random vocab words
+            self.ef_prefix_input_tokens = torch.arange(config.preseqlen).long()
+        else:
+            self.ef_prefix_emb = None
+
         self.block = nn.ModuleList(
             [T5Block(config, has_relative_attention_bias=bool(i == 0)) for i in range(config.num_layers)]
         )
@@ -841,6 +848,9 @@ class T5Stack(T5PreTrainedModel):
         # Set final layer norm to last device
         self.final_layer_norm = self.final_layer_norm.to(self.last_device)
 
+        if self.ef_prefix_emb is not None:
+            self.ef_prefix_emb = self.ef_prefix_emb.to(self.first_device)
+
     @add_start_docstrings(PARALLELIZE_DOCSTRING)
     def deparallelize(self):
         self.model_parallel = False
@@ -851,6 +861,8 @@ class T5Stack(T5PreTrainedModel):
             self.block[i] = self.block[i].to("cpu")
         self.embed_tokens = self.embed_tokens.to("cpu")
         self.final_layer_norm = self.final_layer_norm.to("cpu")
+        if self.ef_prefix_emb is not None:
+            self.ef_prefix_emb = self.ef_prefix_emb.to("cpu")
         torch.cuda.empty_cache()
 
     def get_input_embeddings(self):
@@ -878,6 +890,9 @@ class T5Stack(T5PreTrainedModel):
         if self.model_parallel:
             torch.cuda.set_device(self.first_device)
             self.embed_tokens = self.embed_tokens.to(self.first_device)
+            if self.ef_prefix_emb is not None:
+                self.ef_prefix_emb = self.ef_prefix_emb.to(self.first_device)
+
         use_cache = use_cache if use_cache is not None else self.config.use_cache
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
@@ -899,11 +914,22 @@ class T5Stack(T5PreTrainedModel):
             err_msg_prefix = "decoder_" if self.is_decoder else ""
             raise ValueError(f"You have to specify either {err_msg_prefix}input_ids or {err_msg_prefix}inputs_embeds")
 
+        batch_size, seq_length = input_shape
         if inputs_embeds is None:
             assert self.embed_tokens is not None, "You have to initialize the model with valid token embeddings"
             inputs_embeds = self.embed_tokens(input_ids)
+            if self.ef_prefix_emb is not None:
+                bsz = inputs_embeds.size(0)
+                index_tokens = self.ef_prefix_input_tokens.unsqueeze(0).expand(bsz, -1).to(inputs_embeds.device)
+                prefix_embs = self.ef_prefix_emb(index_tokens)
+                inputs_embeds = torch.cat([prefix_embs, inputs_embeds], dim=1)
 
-        batch_size, seq_length = input_shape
+                if not self.training and attention_mask.size(1) == input_ids.size(1):
+                    # generation time
+                    attention_mask = torch.cat(
+                        [torch.ones(bsz, self.config.preseqlen).to(input_ids.device),
+                         attention_mask], dim=1)
+                seq_length += prefix_embs.size()
 
         # required mask seq length can be calculated via length of past
         mask_seq_length = past_key_values[0][0].shape[2] + seq_length if past_key_values is not None else seq_length
@@ -1432,6 +1458,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         r"encoder\.embed_tokens\.weight",
         r"decoder\.embed_tokens\.weight",
         r"lm_head\.weight",
+        r"_ef",
     ]
     _keys_to_ignore_on_load_unexpected = [
         r"decoder\.block\.0\.layer\.1\.EncDecAttention\.relative_attention_bias\.weight",

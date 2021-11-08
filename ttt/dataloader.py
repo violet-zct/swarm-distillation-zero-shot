@@ -1,18 +1,23 @@
 from promptsource.templates import DatasetTemplates
 import datasets
+from torch.utils.data import Dataset
+import torch
 
 
-class Task():
+class DatasetByPrompt(Dataset):
     # used for test, maybe need to extend this class for open-ended generation tasks
-    def __init__(self, args, cache_dir):
+    def __init__(self, args, cache_dir, tokenizer):
+        super().__init__()
         self.cache_dir = cache_dir
         self.DATASET_NAME = args.dataset_name
         self.SUBSET_NAME = args.subset_name if args.subset_name != "none" else None
         self.TESTSET_NAME = args.testset_name
         self.PROMPTSET_NAME = args.prompt_set_name  # has subset name?
         self.task_type = args.task_type
+        self.num_choices = -1 # set later
         self.load()
 
+        self.tokenizer = tokenizer
         self.prompts = DatasetTemplates(self.PROMPTSET_NAME, self.SUBSET_NAME)
         self.original_task_prompts = self.extract_original_task_prompts()
         print("{} has {} original task prompts, total test examples = {}".format(self.DATASET_NAME + ("/" + self.SUBSET_NAME) if self.SUBSET_NAME is not None else "",
@@ -20,42 +25,78 @@ class Task():
                                                                                  self.size))
 
     def load(self):
-        self.data = datasets.load_dataset(self.DATASET_NAME, self.SUBSET_NAME, cache_dir=self.cache_dir)[self.TESTSET_NAME]
+        self.dataset = datasets.load_dataset(self.DATASET_NAME, self.SUBSET_NAME, cache_dir=self.cache_dir)[self.TESTSET_NAME]
 
     @property
     def num_prompts(self):
         return len(self.original_task_prompts)
 
-    @property
-    def size(self):
-        return len(self.data)
+    def __len__(self):
+        return len(self.dataset)
 
     def __getitem__(self, idx):
-        item = self.data[idx]
+        item = self.dataset[idx]
         inputs = []
         outputs = []
-        prev_label = None
         for pname in self.original_task_prompts:
             input_template, output_template = self.prompts[pname].apply(item)
             if self.task_type == "classification":
-                # fixme: for each pname, enumerate all possible answer choices.
                 # is output_template always the answer_choices[label]
-                all_outputs = []
-                all_inputs = []
                 for answer in self.prompts[pname].get_answer_choices_list(item):
-                    all_inputs.append(input_template)
-                    all_outputs.append(answer)
-                label = self.prompts[pname].get_answer_choices_list(item).index(output_template)
-                check = True if prev_label is None else label == prev_label
-                prev_label = label
-                assert check
-                inputs.append(all_inputs)
-                outputs.append(all_outputs)
+                    inputs.append(input_template)
+                    outputs.append(answer.strip())
+                # label = self.prompts[pname].get_answer_choices_list(item).index(output_template)
             else:
+                # todo: for generation
                 inputs.append([input_template])
-                outputs.append([output_template])
-        return inputs, outputs, prev_label
+                outputs.append([output_template.strip()])
+
+        # return inputs, outputs, item['label']
+        model_inputs = self.tokenizer(inputs, padding=False, truncation=True)
+        outputs_ids = self.tokenizer(outputs,  padding=False, truncation=True).input_ids
+        model_inputs['labels'] = torch.tensor([[self.tokenizer.pad_token_id] +
+                                               [l if l != self.tokenizer.pad_token_id else -100 for l in x] for x in outputs_ids])
+
+        results = [{
+            'input_ids': input_id,
+            'attnetion_masks': amask,
+            'labels': label,
+        } for input_id, amask, label in zip(model_inputs['input_ids'], model_inputs['attention_masks'], model_inputs['labels'])]
+        return results, item['label']
+
+    def set_num_choices(self, n):
+        check = True if self.num_choices == -1 else self.num_choices == n
+        assert check
+        self.num_choices = n
 
     def extract_original_task_prompts(self):
         all_prompt_names = self.prompts.all_template_names
         return [name for name in all_prompt_names if self.prompts[name].metadata.original_task]
+
+
+class TTTDataset(Dataset):
+    def __init__(self, test_dataset, test_args, idx=-1):
+        super().__init__()
+        train_data_form = test_args["train_data_source"]
+        self.num_choices = test_dataset.num_choices
+        self.num_prompts = test_dataset.num_prompts
+
+        if train_data_form == 'stream':
+            assert idx >= 0
+            self.dataset, self.gold_label = test_dataset[idx]
+        else:
+            self.dataset, self.gold_label = self.construct_dataset(test_dataset)
+
+    def construct_dataset(self, dataset: DatasetByPrompt):
+        all_data = []
+        labels = []
+        for examples, label in dataset:
+            all_data.extend(examples)
+            labels.append(label)
+        return all_data, labels
+
+    def __getitem__(self, idx):
+        return self.dataset[idx * self.num_choices: (idx+1) * self.num_choices]
+
+    def __len__(self):
+        return len(self.dataset)
