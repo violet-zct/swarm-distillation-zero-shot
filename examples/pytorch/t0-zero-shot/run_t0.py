@@ -18,7 +18,6 @@ from transformers import (
 )
 from ttt.options import *
 from ttt.dataloader import DatasetByPrompt, TTTDataset
-from ttt.effectune import ParamEfficientTuning
 import logging
 
 # reload the t0 model after each test point or reset the biases when using bitfit;
@@ -183,7 +182,12 @@ def main():
                 revision=model_args.model_revision,
                 use_auth_token=True if model_args.use_auth_token else None,
             )
-            model = ParamEfficientTuning(config, model)
+            for n, p in model.named_parameters():
+                if test_args.peft_option == 'bitfit' and "bias" in n:
+                    print("tune " + n)
+                    p.requires_grad = True
+                else:
+                    p.requires_grad = False
             return model
 
         data_collator = DataCollatorForSeq2Seq(
