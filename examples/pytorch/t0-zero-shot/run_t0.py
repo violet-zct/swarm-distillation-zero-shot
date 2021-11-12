@@ -144,7 +144,7 @@ def main():
     )
     test_data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer)
 
-    metrics = datasets.load_metric(data_args.dataset_name, data_args.subset_name)
+    metrics = datasets.load_metric(data_args.dataset_name, data_args.subset_name, cache_dir=model_args.cache_dir)
     if test_args.test_mode == "t0":
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_args.model_name_or_path,
