@@ -14,7 +14,7 @@ class DatasetByPrompt(Dataset):
         self.TESTSET_NAME = args.testset_name
         self.PROMPTSET_NAME = args.prompt_set_name  # has subset name?
         self.task_type = args.task_type
-        self.num_choices = -1 # set later
+        self.num_choices = -1  # set later
         self.load()
 
         self.tokenizer = tokenizer
@@ -42,9 +42,11 @@ class DatasetByPrompt(Dataset):
             input_template, output_template = self.prompts[pname].apply(item)
             if self.task_type == "classification":
                 # is output_template always the answer_choices[label]
-                for answer in self.prompts[pname].get_answer_choices_list(item):
+                targets = self.prompts[pname].get_answer_choices_list(item)
+                for answer in targets:
                     inputs.append(input_template)
                     outputs.append(answer.strip())
+                self.set_num_choices(len(targets))
                 # label = self.prompts[pname].get_answer_choices_list(item).index(output_template)
             else:
                 # todo: for generation
@@ -78,14 +80,14 @@ class TTTDataset(Dataset):
     def __init__(self, test_dataset, test_args, idx=-1):
         super().__init__()
         train_data_form = test_args.train_data_source
-        self.num_choices = test_dataset.num_choices
-        self.num_prompts = test_dataset.num_prompts
-
         if train_data_form == 'stream':
             assert idx >= 0
             self.dataset, self.gold_label = test_dataset[idx]
         else:
             self.dataset, self.gold_label = self.construct_dataset(test_dataset)
+
+        self.num_choices = test_dataset.num_choices
+        self.num_prompts = test_dataset.num_prompts
 
     def construct_dataset(self, dataset: DatasetByPrompt):
         all_data = []
@@ -99,4 +101,4 @@ class TTTDataset(Dataset):
         return self.dataset[idx * self.num_choices: (idx+1) * self.num_choices]
 
     def __len__(self):
-        return len(self.dataset)
+        return self.num_prompts

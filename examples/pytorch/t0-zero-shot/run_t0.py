@@ -1,3 +1,5 @@
+import math
+
 import torch
 
 from transformers import AutoModelForSeq2SeqLM
@@ -17,6 +19,7 @@ from transformers import (
     set_seed,
 )
 from ttt.options import *
+from ttt.utils import compute_metrics, summarize_metrics
 from ttt.dataloader import DatasetByPrompt, TTTDataset
 import logging
 
@@ -31,7 +34,9 @@ def chunks(tot, bsz):
     return batches
 
 
-def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16):
+
+
+def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16, data_collator, metrics):
     # print("world size = {}".format(torch.distributed.get_world_size()))
     # ds_engine = deepspeed.init_inference(model, mp_size=torch.distributed.get_world_size(),
     #                                  dtype=torch.half if fp16 else torch.float,
@@ -50,15 +55,6 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16)
         all_data.extend(prompted_example)
         golds.append(glabel)
 
-    def _pad(inputs):
-        features = tokenizer.pad(
-            inputs,
-            padding=True,
-            max_length=None,
-            return_tensors='pt',
-        )
-        return features
-
     all_loglikelihoods = []
     processed_batch = 0
     vocab = tokenizer.get_vocab()
@@ -66,7 +62,7 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16)
     print(vocab[0], vocab[1], vocab[2])
     for bid1, bid2 in chunks(len(all_data), batch_size):
         model_inputs = all_data[bid1: bid2]
-        model_inputs = _pad(model_inputs)
+        model_inputs = data_collator(model_inputs)
         target_mask = torch.tensor([[1. if l != tokenizer.pad_token_id and l != tokenizer.eos_token_id else 0. for l in x]
                                     for x in model_inputs['labels']]).float()
 
@@ -88,26 +84,9 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16)
         if processed_batch % 10 == 0:
             logger.info("evaluating {} batches of test examples".format(processed_batch))
 
-    predictions = [[] for _ in range(test_data.num_prompts)]
-    idx = 0
-    for eidx in range(len(test_data)):
-        for pidx in range(test_data.num_prompts):
-            max_ll, pred_label = -np.inf, -1
-            # actually, the number of labels of each prompt should be the same
-            for ii in range(test_data.num_choices):
-                if all_loglikelihoods[idx] > max_ll:
-                    max_ll, pred_label = all_loglikelihoods[idx], ii
-                idx += 1
-            predictions[pidx].append(pred_label)
-
-    accuracies = []
-    for ppred in predictions:
-        accuracies.append(sum(np.array(ppred) == np.array(golds)) * 1.0 / len(golds))
-    logger.info("median accuracy = {}, max acc = {}, min acc ={}, mean = {}, var = {}".format(np.median(accuracies),
-                                                                             np.max(accuracies),
-                                                                             np.min(accuracies),
-                                                                             np.mean(accuracies),
-                                                                             np.var(accuracies)))
+    results = compute_metrics(all_loglikelihoods, len(test_data), test_data.num_choices, test_data.num_prompts, golds, metrics)
+    for k, v in results:
+        print("{} = {}".format(k, v))
 
 
 def main():
@@ -158,8 +137,14 @@ def main():
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
     )
+    data_collator = DataCollatorForSeq2Seq(
+        tokenizer,
+        label_pad_token_id=-100,
+        pad_to_multiple_of=8 if training_args.fp16 else None,
+    )
     test_data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer)
 
+    metrics = datasets.load_metric(data_args.dataset_name, data_args.subset_name)
     if test_args.test_mode == "t0":
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_args.model_name_or_path,
@@ -171,9 +156,10 @@ def main():
         )
         model.resize_token_embeddings(len(tokenizer))
         batched_evalute_t0(model, tokenizer, test_data, data_args, training_args.per_gpu_eval_batch_size,
-                           training_args.fp16)
+                           training_args.fp16, data_collator, metrics)
     elif test_args.test_mode == "ttt_t0":
         def _model_init():
+            # very slow
             model = AutoModelForSeq2SeqLM.from_pretrained(
                 model_args.model_name_or_path,
                 from_tf=bool(".ckpt" in model_args.model_name_or_path),
@@ -186,34 +172,52 @@ def main():
                 if test_args.peft_option == 'bitfit' and "bias" in n:
                     print("tune " + n)
                     p.requires_grad = True
+                elif test_args.peft_option == 'prompt_tuning' and "ef_" in n:
+                    print("tune " + n)
+                    p.requires_grad = True
                 else:
                     p.requires_grad = False
             return model
 
-        data_collator = DataCollatorForSeq2Seq(
-            tokenizer,
-            label_pad_token_id=-100,
-            pad_to_multiple_of=8 if training_args.fp16 else None,
-        )
-
+        predictions = [[] for _ in range(test_data.num_prompts)]
+        avg_ensemble_predictions = []
+        golds = []
+        model = _model_init()
         # if test_args.train_data_source == "stream": todo: support unlimited
         for i in range(len(test_data)):
             # create dataset for one example
             test_dataset = TTTDataset(test_data, test_args, idx=i)
             # init trainer
+            with torch.no_grad():
+                for n, p in model.named_parameters():
+                    if test_args.peft_option == 'prompt_tuning' and "ef_" in n:
+                        p.data.normal_(mean=0.0, std=0.02)
+                    elif test_args.peft_option == 'bitfit' and "bias" in n:
+                        # todo: how to recover original bias params?
+                        pass
+
             trainer = Trainer(
-                model_init=_model_init,
+                model=model,
                 args=training_args,
                 train_dataset=test_dataset,
+                eval_dataset=test_dataset,
                 tokenizer=tokenizer,
                 data_collator=data_collator,
-                compute_metrics=None, # todo: add metrics
+                compute_metrics=compute_metrics # todo: add metrics
             )
-            # handle duplicates in trainer
             # run train
             trainer.train(resume_from_checkpoint=None)
-            # todo: test without saving model
+            prompt_preds, avg_ensemble_pred = trainer.evaluate()
+            avg_ensemble_predictions.append(avg_ensemble_pred)
+            golds.append(test_dataset.gold_label)
+            for ii, pred in enumerate(prompt_preds):
+                predictions[ii].append(pred)
+            logger.info("Finish TTT of example {}, avg ensemble pred = {}, "
+                        "gold label = {}".format(i, avg_ensemble_pred, golds[-1]))
 
+        results = summarize_metrics(predictions, avg_ensemble_predictions, golds, metrics)
+        for k, v in results:
+            print("{} = {}".format(k, v))
 
 def _mp_fn(index):
     # For xla_spawn (TPUs)

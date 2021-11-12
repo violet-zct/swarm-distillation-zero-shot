@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 from tqdm.auto import tqdm
-
+from ttt.utils import compute_metrics
 
 # Integrations must be imported before ML frameworks:
 from .integrations import (  # isort: split
@@ -1886,7 +1886,7 @@ class Trainer:
         if self.args.past_index >= 0:
             self._past = outputs[self.args.past_index]
 
-        if self.args.test_mode == 'ttt_t0':
+        if hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0' and model.training:
             logprobs = -outputs.loss
             num_targets = self.train_dataset.num_choices
             assert len(logprobs) % num_targets == 0
@@ -1894,6 +1894,8 @@ class Trainer:
             normalized_probs = probs / (probs.sum(1, keepdims=True))
             marginal_probs = normalized_probs.mean(0)
             loss = -(marginal_probs * marginal_probs.log()).sum()
+        elif hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0' and not model.training:
+            loss = -outputs.loss
         else:
             if labels is not None:
                 loss = self.label_smoother(outputs, labels)
@@ -2130,6 +2132,9 @@ class Trainer:
             ignore_keys=ignore_keys,
             metric_key_prefix=metric_key_prefix,
         )
+        if hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0':
+            self._memory_tracker.stop_and_update_metrics(None)
+            return output
 
         total_batch_size = self.args.eval_batch_size * self.args.world_size
         output.metrics.update(
@@ -2297,7 +2302,11 @@ class Trainer:
 
             # Update containers on host
             if loss is not None:
-                losses = self._nested_gather(loss.repeat(batch_size))
+                if hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0':
+                    loss = self._pad_across_processes(loss)
+                    losses = self._nested_gather(loss)
+                else:
+                    losses = self._nested_gather(loss.repeat(batch_size))
                 losses_host = losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
             if logits is not None:
                 logits = self._pad_across_processes(logits)
@@ -2361,7 +2370,10 @@ class Trainer:
             all_labels = nested_truncate(all_labels, num_samples)
 
         # Metrics!
-        if self.compute_metrics is not None and all_preds is not None and all_labels is not None:
+        if self.compute_metrics is not None and hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0':
+            preds = self.compute_metrics(-all_losses, 1, self.eval_dataset.num_choices, self.eval_dataset.num_prompts,)
+            return EvalLoopOutput(predictions=preds, label_ids=None, metrics=None, num_samples=1)
+        elif self.compute_metrics is not None and all_preds is not None and all_labels is not None:
             metrics = self.compute_metrics(EvalPrediction(predictions=all_preds, label_ids=all_labels))
         else:
             metrics = {}
@@ -2502,7 +2514,10 @@ class Trainer:
                             loss, outputs = self.compute_loss(model, inputs, return_outputs=True)
                     else:
                         loss, outputs = self.compute_loss(model, inputs, return_outputs=True)
-                    loss = loss.mean().detach()
+                    if hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0':
+                        loss = loss.detach()
+                    else:
+                        loss = loss.mean().detach()
                     if isinstance(outputs, dict):
                         logits = tuple(v for k, v in outputs.items() if k not in ignore_keys + ["loss"])
                     else:

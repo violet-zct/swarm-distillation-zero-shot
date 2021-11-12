@@ -929,7 +929,7 @@ class T5Stack(T5PreTrainedModel):
                     attention_mask = torch.cat(
                         [torch.ones(bsz, self.config.prompt_tuning_L).to(input_ids.device),
                          attention_mask], dim=1)
-                seq_length += prefix_embs.size()
+                seq_length += prefix_embs.size(1)
 
         # required mask seq length can be calculated via length of past
         mask_seq_length = past_key_values[0][0].shape[2] + seq_length if past_key_values is not None else seq_length
@@ -1591,6 +1591,11 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             if self.config.num_layers == self.config.num_decoder_layers:
                 warnings.warn(__HEAD_MASK_WARNING_MSG, FutureWarning)
                 decoder_head_mask = head_mask
+
+        if self.config.peft_option == "prompt_tuning" and encoder_outputs is None:
+            # training time
+            attention_mask = torch.cat(
+                [torch.ones(input_ids.size(0), self.config.prompt_tuning_L).to(input_ids.device), attention_mask], dim=1)
 
         # Encode if needed (training, first prediction pass)
         if encoder_outputs is None:
