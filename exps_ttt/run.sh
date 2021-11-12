@@ -58,7 +58,7 @@ cp ${0} ${SAVE}/run.sh
 deepspeed --num_gpus=4 examples/pytorch/t0-zero-shot/run_t0.py \
   --deepspeed deepspeed_configs/ds_config.json \
   --dataset_name ${dataset} --subset_name ${subset} --prompt_set_name ${dataset} --testset_name ${testset_name} \
-  --model_name_or_path ${model} --per_device_train_batch_size ${pbsz}  --per_gpu_eval_batch_size 10 \
+  --model_name_or_path ${model} --per_device_train_batch_size ${pbsz}  --per_device_eval_batch_size 10 \
   --test_mode ${test_mode} --cache_dir ${cache_dir} \
   --peft_option ${peft} --prompt_tuning_L ${pL} \
   --do_train --logging_steps ${log_steps} --num_train_epochs ${max_epochs} --max_steps ${max_steps} \

@@ -84,6 +84,7 @@ class TTTDataset(Dataset):
             assert idx >= 0
             self.dataset, self.gold_label = test_dataset[idx]
         else:
+            # todo: this is bugged
             self.dataset, self.gold_label = self.construct_dataset(test_dataset)
 
         self.num_choices = test_dataset.num_choices
@@ -102,3 +103,6 @@ class TTTDataset(Dataset):
 
     def __len__(self):
         return self.num_prompts
+
+    def size(self):
+        return self.num_prompts * self.num_choices

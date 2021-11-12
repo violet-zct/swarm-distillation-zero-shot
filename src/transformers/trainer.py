@@ -1245,7 +1245,7 @@ class Trainer:
             self.state.trial_params = hp_params(assignments)
         else:
             self.state.trial_params = None
-        # This should be the same if the state has been saved but in case the training arguments changed, it's safer
+        # This should be the same if the state has been sxaved but in case the training arguments changed, it's safer
         # to set this after the load.
         self.state.max_steps = max_steps
         self.state.num_train_epochs = num_train_epochs
@@ -1886,16 +1886,27 @@ class Trainer:
         if self.args.past_index >= 0:
             self._past = outputs[self.args.past_index]
 
-        if hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0' and model.training:
-            logprobs = -outputs.loss
+        training = model.module.training if self.args.deepspeed else model.training
+        if hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0' and training:
+            logprobs = outputs.loss
+            # fixme
+            logger.info("rank = {}, logprobs = {}".format(torch.distributed.get_rank(), logprobs.size()))
             num_targets = self.train_dataset.num_choices
             assert len(logprobs) % num_targets == 0
             probs = logprobs.exp().view(-1, num_targets)
             normalized_probs = probs / (probs.sum(1, keepdims=True))
+            #fixme
+            logger.info("rank = {}, normalized probs size= {}, probs = {}".format(torch.distributed.get_rank(), normalized_probs.size(), normalized_probs))
             marginal_probs = normalized_probs.mean(0)
             loss = -(marginal_probs * marginal_probs.log()).sum()
-        elif hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0' and not model.training:
-            loss = -outputs.loss
+            #fixme
+            print(
+                "rank = {}, loss= {}".format(torch.distributed.get_rank(), loss))
+        elif hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0' and not training:
+            loss = outputs.loss
+            #fixme
+            print(
+                "rank = {}, size = {}, loss= {}".format(torch.distributed.get_rank(), loss.size(), loss))
         else:
             if labels is not None:
                 loss = self.label_smoother(outputs, labels)
@@ -2300,6 +2311,9 @@ class Trainer:
             # Prediction step
             loss, logits, labels = self.prediction_step(model, inputs, prediction_loss_only, ignore_keys=ignore_keys)
 
+            #fixme
+            print(
+                "******* loop: rank = {}, loss= {}".format(torch.distributed.get_rank(), loss))
             # Update containers on host
             if loss is not None:
                 if hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0':
@@ -2349,10 +2363,14 @@ class Trainer:
         if labels_host is not None:
             labels = nested_numpify(labels_host)
             all_labels = labels if all_labels is None else nested_concat(all_labels, labels, padding_index=-100)
+        # fixme
+        print(
+            "******* loop 2: rank = {}, all losses size, loss= {}".format(torch.distributed.get_rank(), all_losses.size(), all_losses))
+
 
         # Number of samples
         if not isinstance(eval_dataset, IterableDataset):
-            num_samples = len(eval_dataset)
+            num_samples = len(eval_dataset) if not hasattr(eval_dataset, "num_examples") else eval_dataset.num_examples
         # The instance check is weird and does not actually check for the type, but whether the dataset has the right
         # methods. Therefore we need to make sure it also has the attribute.
         elif isinstance(eval_dataset, IterableDatasetShard) and hasattr(eval_dataset, "num_examples"):
