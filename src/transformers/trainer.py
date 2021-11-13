@@ -1015,6 +1015,7 @@ class Trainer:
         resume_from_checkpoint: Optional[Union[str, bool]] = None,
         trial: Union["optuna.Trial", Dict[str, Any]] = None,
         ignore_keys_for_eval: Optional[List[str]] = None,
+        reinit_model: Optional[bool] = True,
         **kwargs,
     ):
         """
@@ -1155,7 +1156,7 @@ class Trainer:
                 debug_overflow = DebugUnderflowOverflow(self.model)  # noqa
 
         delay_optimizer_creation = self.sharded_ddp is not None and self.sharded_ddp != ShardedDDPOption.SIMPLE
-        if args.deepspeed:
+        if args.deepspeed and reinit_model:
             deepspeed_engine, optimizer, lr_scheduler = deepspeed_init(
                 self, num_training_steps=max_steps, resume_from_checkpoint=resume_from_checkpoint
             )
@@ -1164,6 +1165,8 @@ class Trainer:
             self.deepspeed = deepspeed_engine
             self.optimizer = optimizer
             self.lr_scheduler = lr_scheduler
+        elif args.deepspeed and self.deepspeed and not reinit_model:
+            pass
         elif not delay_optimizer_creation:
             self.create_optimizer_and_scheduler(num_training_steps=max_steps)
 
@@ -2145,7 +2148,7 @@ class Trainer:
         )
         if hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0':
             self._memory_tracker.stop_and_update_metrics(None)
-            return output
+            return output.predictions
 
         total_batch_size = self.args.eval_batch_size * self.args.world_size
         output.metrics.update(
@@ -2365,8 +2368,7 @@ class Trainer:
             all_labels = labels if all_labels is None else nested_concat(all_labels, labels, padding_index=-100)
         # fixme
         print(
-            "******* loop 2: rank = {}, all losses size, loss= {}".format(torch.distributed.get_rank(), all_losses.size(), all_losses))
-
+            "******* loop 2: rank = {}, all losses size={}, loss= {}".format(torch.distributed.get_rank(), all_losses.size(), all_losses))
 
         # Number of samples
         if not isinstance(eval_dataset, IterableDataset):
@@ -2389,7 +2391,7 @@ class Trainer:
 
         # Metrics!
         if self.compute_metrics is not None and hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0':
-            preds = self.compute_metrics(-all_losses, 1, self.eval_dataset.num_choices, self.eval_dataset.num_prompts,)
+            preds = self.compute_metrics(all_losses, 1, self.eval_dataset.num_choices, self.eval_dataset.num_prompts,)
             return EvalLoopOutput(predictions=preds, label_ids=None, metrics=None, num_samples=1)
         elif self.compute_metrics is not None and all_preds is not None and all_labels is not None:
             metrics = self.compute_metrics(EvalPrediction(predictions=all_preds, label_ids=all_labels))

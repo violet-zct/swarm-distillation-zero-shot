@@ -11,11 +11,14 @@ def compute_metrics(logprobs, num_examples, num_targets, num_prompts, golds=None
         for pidx in range(num_prompts):
             max_ll, pred_label = -np.inf, -1
             # actually, the number of labels of each prompt should be the same
+            normalized_probs = np.zeros(num_targets)
             for ii in range(num_targets):
                 if logprobs[idx] > max_ll:
                     max_ll, pred_label = logprobs[idx], ii
-                avg_probs[ii] += math.exp(logprobs[ii])
+                normalized_probs[ii] = math.exp(logprobs[idx])
                 idx += 1
+            normalized_probs = normalized_probs / normalized_probs.sum()
+            avg_probs += normalized_probs
             predictions[pidx].append(pred_label)
         avg_probs = avg_probs / num_prompts
         avg_ensemble_predictions.append(np.argmax(avg_probs))

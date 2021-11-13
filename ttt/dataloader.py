@@ -104,5 +104,6 @@ class TTTDataset(Dataset):
     def __len__(self):
         return self.num_prompts
 
-    def size(self):
+    @property
+    def num_examples(self):
         return self.num_prompts * self.num_choices

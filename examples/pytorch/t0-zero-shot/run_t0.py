@@ -192,6 +192,7 @@ def main():
                 for n, p in model.named_parameters():
                     if test_args.peft_option == 'prompt_tuning' and "ef_" in n:
                         p.data.normal_(mean=0.0, std=0.02)
+                        p.requires_grad = False
                     elif test_args.peft_option == 'bitfit' and "bias" in n:
                         # todo: how to recover original bias params?
                         pass
