@@ -25,6 +25,7 @@ import re
 import shutil
 import sys
 import time
+from collections import defaultdict
 import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
@@ -1044,72 +1045,73 @@ class Trainer:
 
         self.is_in_train = True
 
-        # do_train is not a reliable argument, as it might not be set and .train() still called, so
-        # the following is a workaround:
-        if args.fp16_full_eval and not args.do_train:
-            self._move_model_to_device(self.model, args.device)
-
-        if "model_path" in kwargs:
-            resume_from_checkpoint = kwargs.pop("model_path")
-            warnings.warn(
-                "`model_path` is deprecated and will be removed in a future version. Use `resume_from_checkpoint` "
-                "instead.",
-                FutureWarning,
-            )
-        if len(kwargs) > 0:
-            raise TypeError(f"train() received got unexpected keyword arguments: {', '.join(list(kwargs.keys()))}.")
-        # This might change the seed so needs to run first.
-        self._hp_search_setup(trial)
-
-        # Model re-init
-        model_reloaded = False
-        if self.model_init is not None:
-            # Seed must be set before instantiating the model when using model_init.
-            set_seed(args.seed)
-            self.model = self.call_model_init(trial)
-            model_reloaded = True
-            # Reinitializes optimizer and scheduler
-            self.optimizer, self.lr_scheduler = None, None
-
-        # Load potential model checkpoint
-        if isinstance(resume_from_checkpoint, bool) and resume_from_checkpoint:
-            resume_from_checkpoint = get_last_checkpoint(args.output_dir)
-            if resume_from_checkpoint is None:
-                raise ValueError(f"No valid checkpoint found in output directory ({args.output_dir})")
-
-        if resume_from_checkpoint is not None:
-            if not os.path.isfile(os.path.join(resume_from_checkpoint, WEIGHTS_NAME)):
-                raise ValueError(f"Can't find a valid checkpoint at {resume_from_checkpoint}")
-
-            logger.info(f"Loading model from {resume_from_checkpoint}).")
-
-            if os.path.isfile(os.path.join(resume_from_checkpoint, CONFIG_NAME)):
-                config = PretrainedConfig.from_json_file(os.path.join(resume_from_checkpoint, CONFIG_NAME))
-                checkpoint_version = config.transformers_version
-                if checkpoint_version is not None and checkpoint_version != __version__:
-                    logger.warn(
-                        f"You are resuming training from a checkpoint trained with {checkpoint_version} of "
-                        f"Transformers but your current version is {__version__}. This is not recommended and could "
-                        "yield to errors or unwanted behaviors."
-                    )
-
-            if args.deepspeed:
-                # will be resumed in deepspeed_init
-                pass
-            else:
-                # We load the model state dict on the CPU to avoid an OOM error.
-                state_dict = torch.load(os.path.join(resume_from_checkpoint, WEIGHTS_NAME), map_location="cpu")
-                # If the model is on the GPU, it still works!
-                self._load_state_dict_in_model(state_dict)
-
-                # release memory
-                del state_dict
-
-        # If model was re-initialized, put it on the right device and update self.model_wrapped
-        if model_reloaded:
-            if self.place_model_on_device:
+        if reinit_model:
+            # do_train is not a reliable argument, as it might not be set and .train() still called, so
+            # the following is a workaround:
+            if args.fp16_full_eval and not args.do_train:
                 self._move_model_to_device(self.model, args.device)
-            self.model_wrapped = self.model
+
+            if "model_path" in kwargs:
+                resume_from_checkpoint = kwargs.pop("model_path")
+                warnings.warn(
+                    "`model_path` is deprecated and will be removed in a future version. Use `resume_from_checkpoint` "
+                    "instead.",
+                    FutureWarning,
+                )
+            if len(kwargs) > 0:
+                raise TypeError(f"train() received got unexpected keyword arguments: {', '.join(list(kwargs.keys()))}.")
+            # This might change the seed so needs to run first.
+            self._hp_search_setup(trial)
+
+            # Model re-init
+            model_reloaded = False
+            if self.model_init is not None:
+                # Seed must be set before instantiating the model when using model_init.
+                set_seed(args.seed)
+                self.model = self.call_model_init(trial)
+                model_reloaded = True
+                # Reinitializes optimizer and scheduler
+                self.optimizer, self.lr_scheduler = None, None
+
+            # Load potential model checkpoint
+            if isinstance(resume_from_checkpoint, bool) and resume_from_checkpoint:
+                resume_from_checkpoint = get_last_checkpoint(args.output_dir)
+                if resume_from_checkpoint is None:
+                    raise ValueError(f"No valid checkpoint found in output directory ({args.output_dir})")
+
+            if resume_from_checkpoint is not None:
+                if not os.path.isfile(os.path.join(resume_from_checkpoint, WEIGHTS_NAME)):
+                    raise ValueError(f"Can't find a valid checkpoint at {resume_from_checkpoint}")
+
+                logger.info(f"Loading model from {resume_from_checkpoint}).")
+
+                if os.path.isfile(os.path.join(resume_from_checkpoint, CONFIG_NAME)):
+                    config = PretrainedConfig.from_json_file(os.path.join(resume_from_checkpoint, CONFIG_NAME))
+                    checkpoint_version = config.transformers_version
+                    if checkpoint_version is not None and checkpoint_version != __version__:
+                        logger.warn(
+                            f"You are resuming training from a checkpoint trained with {checkpoint_version} of "
+                            f"Transformers but your current version is {__version__}. This is not recommended and could "
+                            "yield to errors or unwanted behaviors."
+                        )
+
+                if args.deepspeed:
+                    # will be resumed in deepspeed_init
+                    pass
+                else:
+                    # We load the model state dict on the CPU to avoid an OOM error.
+                    state_dict = torch.load(os.path.join(resume_from_checkpoint, WEIGHTS_NAME), map_location="cpu")
+                    # If the model is on the GPU, it still works!
+                    self._load_state_dict_in_model(state_dict)
+
+                    # release memory
+                    del state_dict
+
+            # If model was re-initialized, put it on the right device and update self.model_wrapped
+            if model_reloaded:
+                if self.place_model_on_device:
+                    self._move_model_to_device(self.model, args.device)
+                self.model_wrapped = self.model
 
         # Keeping track whether we can can len() on the dataset or not
         train_dataset_is_sized = isinstance(self.train_dataset, collections.abc.Sized)
@@ -1166,7 +1168,18 @@ class Trainer:
             self.optimizer = optimizer
             self.lr_scheduler = lr_scheduler
         elif args.deepspeed and self.deepspeed and not reinit_model:
-            pass
+            # init trainer
+            with torch.no_grad():
+                for n, p in self.model.named_parameters():
+                    if self.args.peft_option == 'prompt_tuning' and "ef_" in n:
+                        p.data.normal_(mean=0.0, std=0.02)
+                        p.requires_grad = False
+                    elif self.args.peft_option == 'bitfit' and "bias" in n:
+                        # todo: how to recover original bias params?
+                        pass
+            # reinit optimizer states and lr scheduler
+            self.model_wrapped.optimizer.state = defaultdict(dict)
+            self.model_wrapped._configure_lr_scheduler(None)
         elif not delay_optimizer_creation:
             self.create_optimizer_and_scheduler(num_training_steps=max_steps)
 
@@ -1177,7 +1190,7 @@ class Trainer:
         if args.gradient_checkpointing:
             self.model.gradient_checkpointing_enable()
 
-        model = self._wrap_model(self.model_wrapped)
+        model = self._wrap_model(self.model_wrapped)  # deepspeed engine
 
         # for the rest of this function `model` is the outside model, whether it was wrapped or not
         if model is not self.model:

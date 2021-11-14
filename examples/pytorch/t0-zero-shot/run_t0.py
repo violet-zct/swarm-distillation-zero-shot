@@ -183,31 +183,23 @@ def main():
         avg_ensemble_predictions = []
         golds = []
         model = _model_init()
+        trainer = Trainer(
+            model=model,
+            args=training_args,
+            tokenizer=tokenizer,
+            data_collator=data_collator,
+            compute_metrics=compute_metrics  # todo: add metrics
+        )
+
         # if test_args.train_data_source == "stream": todo: support unlimited
         for i in range(len(test_data)):
             # create dataset for one example
             test_dataset = TTTDataset(test_data, test_args, idx=i)
-            # init trainer
-            with torch.no_grad():
-                for n, p in model.named_parameters():
-                    if test_args.peft_option == 'prompt_tuning' and "ef_" in n:
-                        p.data.normal_(mean=0.0, std=0.02)
-                        p.requires_grad = False
-                    elif test_args.peft_option == 'bitfit' and "bias" in n:
-                        # todo: how to recover original bias params?
-                        pass
+            trainer.train_dataset = test_dataset
+            trainer.eval_dataset = test_dataset
 
-            trainer = Trainer(
-                model=model,
-                args=training_args,
-                train_dataset=test_dataset,
-                eval_dataset=test_dataset,
-                tokenizer=tokenizer,
-                data_collator=data_collator,
-                compute_metrics=compute_metrics # todo: add metrics
-            )
             # run train
-            trainer.train(resume_from_checkpoint=None)
+            trainer.train(resume_from_checkpoint=None, reinit_model=(i==0))
             prompt_preds, avg_ensemble_pred = trainer.evaluate()
             avg_ensemble_predictions.append(avg_ensemble_pred)
             golds.append(test_dataset.gold_label)
