@@ -1173,10 +1173,12 @@ class Trainer:
                 for n, p in self.model.named_parameters():
                     if self.args.peft_option == 'prompt_tuning' and "ef_" in n:
                         p.data.normal_(mean=0.0, std=0.02)
-                        p.requires_grad = False
+                        p.requires_grad = True
                     elif self.args.peft_option == 'bitfit' and "bias" in n:
                         # todo: how to recover original bias params?
                         pass
+                    else:
+                        p.requires_grad = False
             # reinit optimizer states and lr scheduler
             self.model_wrapped.optimizer.state = defaultdict(dict)
             self.model_wrapped._configure_lr_scheduler(None)
@@ -1906,23 +1908,23 @@ class Trainer:
         if hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0' and training:
             logprobs = outputs.loss
             # fixme
-            logger.info("rank = {}, logprobs = {}".format(torch.distributed.get_rank(), logprobs.size()))
+            # logger.info("rank = {}, logprobs = {}".format(torch.distributed.get_rank(), logprobs.size()))
             num_targets = self.train_dataset.num_choices
             assert len(logprobs) % num_targets == 0
             probs = logprobs.exp().view(-1, num_targets)
             normalized_probs = probs / (probs.sum(1, keepdims=True))
             #fixme
-            logger.info("rank = {}, normalized probs size= {}, probs = {}".format(torch.distributed.get_rank(), normalized_probs.size(), normalized_probs))
+            # logger.info("rank = {}, normalized probs size= {}, probs = {}".format(torch.distributed.get_rank(), normalized_probs.size(), normalized_probs))
             marginal_probs = normalized_probs.mean(0)
             loss = -(marginal_probs * marginal_probs.log()).sum()
             #fixme
-            print(
-                "rank = {}, loss= {}".format(torch.distributed.get_rank(), loss))
+            # print(
+            #     "rank = {}, loss= {}".format(torch.distributed.get_rank(), loss))
         elif hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0' and not training:
             loss = outputs.loss
             #fixme
-            print(
-                "rank = {}, size = {}, loss= {}".format(torch.distributed.get_rank(), loss.size(), loss))
+            # print(
+            #     "rank = {}, size = {}, loss= {}".format(torch.distributed.get_rank(), loss.size(), loss))
         else:
             if labels is not None:
                 loss = self.label_smoother(outputs, labels)
@@ -2328,8 +2330,8 @@ class Trainer:
             loss, logits, labels = self.prediction_step(model, inputs, prediction_loss_only, ignore_keys=ignore_keys)
 
             #fixme
-            print(
-                "******* loop: rank = {}, loss= {}".format(torch.distributed.get_rank(), loss))
+            # print(
+                # "******* loop: rank = {}, loss= {}".format(torch.distributed.get_rank(), loss))
             # Update containers on host
             if loss is not None:
                 if hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0':
@@ -2380,8 +2382,8 @@ class Trainer:
             labels = nested_numpify(labels_host)
             all_labels = labels if all_labels is None else nested_concat(all_labels, labels, padding_index=-100)
         # fixme
-        print(
-            "******* loop 2: rank = {}, all losses size={}, loss= {}".format(torch.distributed.get_rank(), all_losses.size(), all_losses))
+        # print(
+        #     "******* loop 2: rank = {}, all losses size={}, loss= {}".format(torch.distributed.get_rank(), all_losses.size(), all_losses))
 
         # Number of samples
         if not isinstance(eval_dataset, IterableDataset):
