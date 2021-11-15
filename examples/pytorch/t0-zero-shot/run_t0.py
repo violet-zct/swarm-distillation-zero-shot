@@ -86,7 +86,7 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16,
 
     results = compute_metrics(all_loglikelihoods, len(test_data), test_data.num_choices, test_data.num_prompts, golds, metrics)
     for k, v in results.items():
-        print("{} = {}".format(k, v))
+        logger.info("{} = {}".format(k, v))
 
 
 def main():
@@ -211,7 +211,7 @@ def main():
 
         results = summarize_metrics(predictions, avg_ensemble_predictions, golds, metrics)
         for k, v in results.items():
-            print("{} = {}".format(k, v))
+            logger.info("{} = {}".format(k, v))
 
 def _mp_fn(index):
     # For xla_spawn (TPUs)
