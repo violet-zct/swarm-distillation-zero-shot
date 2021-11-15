@@ -46,6 +46,7 @@ lr_scheduler_type="polynomial"
 max_steps=50
 max_epochs=50
 log_steps=10
+debugsize=-1
 
 test_mode="ttt_t0"
 model="bigscience/T0pp"
@@ -60,6 +61,7 @@ deepspeed --num_gpus=4 examples/pytorch/t0-zero-shot/run_t0.py \
   --dataset_name ${dataset} --subset_name ${subset} --prompt_set_name ${dataset} --testset_name ${testset_name} \
   --model_name_or_path ${model} --per_device_train_batch_size ${pbsz}  --per_device_eval_batch_size 10 \
   --test_mode ${test_mode} --cache_dir ${cache_dir} \
+  --debug_size ${debugsize} \
   --peft_option ${peft} --prompt_tuning_L ${pL} \
   --do_train --logging_steps ${log_steps} --num_train_epochs ${max_epochs} --max_steps ${max_steps} \
   --adam_beta1 0.9 \

@@ -100,3 +100,8 @@ class TestArguments:
             "help": "length of prompt vectors"
         },
     )
+
+    debug_size: Optional[int] = field(
+        default=-1,
+        metadata={"help": ""},
+    )
