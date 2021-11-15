@@ -35,7 +35,7 @@ def compute_metrics(logprobs, num_examples, num_targets, num_prompts, golds=None
     for k, v in prompt_metrics[0].items():
         all_preds = [pptm[k] for pptm in prompt_metrics]
         results["max_" + k] = round(np.max(all_preds), 3)
-        results["median_" + k] = round(np.meadian(all_preds), 3)
+        results["median_" + k] = round(np.median(all_preds), 3)
         results["mean_" + k] = round(np.mean(all_preds), 3)
         results["min_" + k] = round(np.min(all_preds), 3)
         results["var_" + k] = round(np.var(all_preds), 3)
@@ -55,7 +55,7 @@ def summarize_metrics(predictions, avg_ensemble_predictions, golds, metrics):
     for k, v in prompt_metrics[0].items():
         all_preds = [pptm[k] for pptm in prompt_metrics]
         results["max_" + k] = round(np.max(all_preds), 3)
-        results["median_" + k] = round(np.meadian(all_preds), 3)
+        results["median_" + k] = round(np.median(all_preds), 3)
         results["mean_" + k] = round(np.mean(all_preds), 3)
         results["min_" + k] = round(np.min(all_preds), 3)
         results["var_" + k] = round(np.var(all_preds), 3)
