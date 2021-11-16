@@ -105,3 +105,7 @@ class TestArguments:
         default=-1,
         metadata={"help": ""},
     )
+
+    metric_name: Optional[str] = field(
+        default="none",
+    )

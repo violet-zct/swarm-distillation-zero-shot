@@ -34,8 +34,6 @@ def chunks(tot, bsz):
     return batches
 
 
-
-
 def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16, data_collator, metrics):
     # print("world size = {}".format(torch.distributed.get_world_size()))
     # ds_engine = deepspeed.init_inference(model, mp_size=torch.distributed.get_world_size(),
@@ -63,8 +61,6 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16,
     for bid1, bid2 in chunks(len(all_data), batch_size):
         model_inputs = all_data[bid1: bid2]
         model_inputs = data_collator(model_inputs)
-        target_mask = torch.tensor([[1. if l != tokenizer.pad_token_id and l != tokenizer.eos_token_id else 0. for l in x]
-                                    for x in model_inputs['labels']]).float()
 
         # fixme: deepspeed offload to cpu, put onto cuda:0?
         for k, v in model_inputs.items():
@@ -142,7 +138,11 @@ def main():
     )
     test_data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer)
 
-    metrics = datasets.load_metric(data_args.dataset_name, data_args.subset_name, cache_dir=model_args.cache_dir)
+    if test_args.metric_name != "none":
+        metrics = datasets.load_metric(data_args.dataset_name, data_args.subset_name, cache_dir=model_args.cache_dir)
+    else:
+        metrics = datasets.load_metric(test_args.metric_name)
+        
     if test_args.test_mode == "t0":
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_args.model_name_or_path,
