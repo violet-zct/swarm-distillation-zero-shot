@@ -73,10 +73,8 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16,
         with torch.no_grad():
             if data_args.task_type == "classification":
                 # log-likelihood per sequence
-                ll = -model(**model_inputs).loss
-                ll = ll.view(model_inputs['labels'].size())
-                ll = (ll * target_mask.to(ll.device)).sum(1).cpu().numpy()
-                all_loglikelihoods.extend(ll)
+                ll = model(**model_inputs).loss
+                all_loglikelihoods.extend(ll.cpu().numpy())
             else:
                 # it seems that there is no actual generation tasks in T0 evaluation
                 decoded = model.generate(input)
