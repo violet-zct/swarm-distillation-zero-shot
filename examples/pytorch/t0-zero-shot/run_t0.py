@@ -67,7 +67,7 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16,
                                     for x in model_inputs['labels']]).float()
 
         # fixme: deepspeed offload to cpu, put onto cuda:0?
-        for k, v in model_inputs:
+        for k, v in model_inputs.items():
             model_inputs[k] = model_inputs[k].to(model.device)
 
         with torch.no_grad():
