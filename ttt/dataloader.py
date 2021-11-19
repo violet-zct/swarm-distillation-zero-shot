@@ -89,7 +89,8 @@ class TTTDataset(Dataset):
 
         self.num_choices = test_dataset.num_choices
         self.num_prompts = test_dataset.num_prompts
-
+        self.original_task_prompts = test_dataset.original_task_prompts
+        
     def construct_dataset(self, dataset: DatasetByPrompt):
         all_data = []
         labels = []

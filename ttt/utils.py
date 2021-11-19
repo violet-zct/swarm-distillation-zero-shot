@@ -33,15 +33,15 @@ def compute_metrics(logprobs, num_examples, num_targets, num_prompts, golds=None
 
     results = {}
     for k, v in prompt_metrics[0].items():
-        all_preds = [pptm[k] for pptm in prompt_metrics]
-        results["max_" + k] = round(np.max(all_preds), 3)
-        results["median_" + k] = round(np.median(all_preds), 3)
-        results["mean_" + k] = round(np.mean(all_preds), 3)
-        results["min_" + k] = round(np.min(all_preds), 3)
-        results["var_" + k] = round(np.var(all_preds), 3)
+        all_preds = [pptm[k]*100 for pptm in prompt_metrics]
+        results["max_" + k] = round(np.max(all_preds), 2)
+        results["median_" + k] = round(np.median(all_preds), 2)
+        results["mean_" + k] = round(np.mean(all_preds), 2)
+        results["min_" + k] = round(np.min(all_preds), 2)
+        results["std_" + k] = round(np.var(all_preds), 2)
 
     for k, v in ensemble_metrics.items():
-        results["ensemble_avg" + k] = v
+        results["ensemble_avg" + k] = round(v * 100, 2)
 
     return results
 
@@ -53,14 +53,14 @@ def summarize_metrics(predictions, avg_ensemble_predictions, golds, metrics):
 
     results = {}
     for k, v in prompt_metrics[0].items():
-        all_preds = [pptm[k] for pptm in prompt_metrics]
-        results["max_" + k] = round(np.max(all_preds), 3)
-        results["median_" + k] = round(np.median(all_preds), 3)
-        results["mean_" + k] = round(np.mean(all_preds), 3)
-        results["min_" + k] = round(np.min(all_preds), 3)
-        results["var_" + k] = round(np.var(all_preds), 3)
+        all_preds = [pptm[k]*100 for pptm in prompt_metrics]
+        results["max_" + k] = round(np.max(all_preds), 2)
+        results["median_" + k] = round(np.median(all_preds), 2)
+        results["mean_" + k] = round(np.mean(all_preds), 2)
+        results["min_" + k] = round(np.min(all_preds), 2)
+        results["std_" + k] = round(np.var(all_preds), 2)
 
     for k, v in ensemble_metrics.items():
-        results["ensemble_avg" + k] = v
+        results["ensemble_avg" + k] = round(v * 100, 2)
 
     return results
