@@ -20,7 +20,7 @@ def write_results_to_file(fout_name, all_prompt_metrics, all_prompt_predictions,
             # output predictions of prompts for each example
             for ii in range(len(all_prompt_predictions[0])):
                 s = ",".join(["median={}".format(median_prompt[ii]), "max={}".format(max_prompt[ii]), "esemb={}".format(avg_ensemble_preds[ii])]) + ","
-                s += ",".join([(all_prompt_predictions[jj][ii]) for jj in range(len(all_prompt_predictions))])
+                s += ",".join([str(all_prompt_predictions[jj][ii]) for jj in range(len(all_prompt_predictions))])
                 fout.write(s + "\n")
 
 
