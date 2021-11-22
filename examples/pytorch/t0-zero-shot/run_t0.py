@@ -42,7 +42,7 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16,
     #                                  checkpoint=None,
     #                                  replace_method='auto')
     # model = ds_engine.module
-    fout_name = "results/" + "_".join([data_args.dataset_name, data_args.subset_name, model_name])
+    fout_name = "results/" + "_".join([data_args.dataset_name, data_args.subset_name, model_name.replace("/", "_")])
     model.eval()
     if fp16:
         model = model.half()
