@@ -15,7 +15,7 @@ def write_results_to_file(fout_name, all_prompt_metrics, all_prompt_predictions,
         results["min_" + k] = round(np.min(all_metrics), 2)
         results["std_" + k] = round(np.std(all_metrics), 2)
         results["ensemble_" + k] = round(avg_ensemble_metrics[k]*100, 2)
-        with open(os.path.join(fout_name, ".{}".format(k)), "w") as fout:
+        with open(fout_name + ".{}".format(k), "w") as fout:
             fout.write(",".join(["{}={}".format(kk, vv) for kk, vv in results.items()]) + "\n")
             # output predictions of prompts for each example
             for ii in range(len(all_prompt_predictions[0])):
