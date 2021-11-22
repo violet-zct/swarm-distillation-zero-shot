@@ -51,7 +51,7 @@ debugsize=-1
 test_mode="ttt_t0"
 model="bigscience/T0pp"
 
-exp_name=${test_mode}.${dataset}.${subset}.${testset_name}
+exp_name=${test_mode}.${dataset}.${subset}.${testset_name}.${model}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 cp ${0} ${SAVE}/run.sh
