@@ -36,7 +36,7 @@ DATE=`date +%Y%m%d`
 
 dataset="super_glue"
 subset="rte"
-pbsz=6
+pbsz=10
 testset_name="validation"
 
 peft="prompt_tuning"
@@ -56,8 +56,8 @@ SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 cp ${0} ${SAVE}/run.sh
 
-deepspeed --num_gpus=2 examples/pytorch/t0-zero-shot/run_t0.py \
-  --deepspeed deepspeed_configs/ds_config.json \
+deepspeed --num_gpus=1 examples/pytorch/t0-zero-shot/run_t0.py \
+  --deepspeed deepspeed_configs/ds_config_zero2.json \
   --dataset_name ${dataset} --subset_name ${subset} --prompt_set_name ${dataset} --testset_name ${testset_name} \
   --model_name_or_path ${model} --per_device_train_batch_size ${pbsz}  --per_device_eval_batch_size 10 \
   --test_mode ${test_mode} --cache_dir ${cache_dir} \
