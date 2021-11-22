@@ -3,12 +3,19 @@ import math
 import os
 
 
+def index_median(array):
+    x = np.argsort(array)
+    h = len(x) // 2
+    # return (x[h] + x[h+1]) // 2 if len(x) % 2 == 0 else x[h]
+    return h
+
+
 def write_results_to_file(fout_name, all_prompt_metrics, all_prompt_predictions, avg_ensemble_metrics, avg_ensemble_preds):
     for k, v in all_prompt_metrics[0].items():
         results = {}
         all_metrics = [pptm[k] * 100 for pptm in all_prompt_metrics]
-        median_prompt = all_prompt_predictions[all_metrics.index(np.median(all_metrics))]
-        max_prompt = all_prompt_predictions[all_metrics.index(np.max(all_metrics))]
+        median_prompt = all_prompt_predictions[index_median(all_metrics)]
+        max_prompt = all_prompt_predictions[np.argsort(all_metrics)[-1]]
         results["max_" + k] = round(np.max(all_metrics), 2)
         results["median_" + k] = round(np.median(all_metrics), 2)
         results["mean_" + k] = round(np.mean(all_metrics), 2)
