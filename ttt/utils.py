@@ -1,8 +1,30 @@
 import numpy as np
 import math
+import os
 
 
-def compute_metrics(logprobs, num_examples, num_targets, num_prompts, golds=None, metrics=None):
+def write_results_to_file(fout_name, all_prompt_metrics, all_prompt_predictions, avg_ensemble_metrics, avg_ensemble_preds):
+    for k, v in all_prompt_metrics[0].items():
+        results = {}
+        all_metrics = [pptm[k] * 100 for pptm in all_prompt_metrics]
+        median_prompt = all_prompt_predictions[all_metrics.index(np.median(all_metrics))]
+        max_prompt = all_prompt_predictions[all_metrics.index(np.max(all_metrics))]
+        results["max_" + k] = round(np.max(all_metrics), 2)
+        results["median_" + k] = round(np.median(all_metrics), 2)
+        results["mean_" + k] = round(np.mean(all_metrics), 2)
+        results["min_" + k] = round(np.min(all_metrics), 2)
+        results["std_" + k] = round(np.std(all_metrics), 2)
+        results["ensemble_" + k] = round(avg_ensemble_metrics[k]*100, 2)
+        with open(os.path.join(fout_name, ".{}".format(k)), "w") as fout:
+            fout.write(",".join(["{}={}".format(kk, vv) for kk, vv in results.items()]) + "\n")
+            # output predictions of prompts for each example
+            for ii in range(len(all_prompt_predictions[0])):
+                s = ",".join(["median={}".format(median_prompt[ii]), "max={}".format(max_prompt[ii]), "esemb={}".format(avg_ensemble_preds[ii])]) + ","
+                s += ",".join([(all_prompt_predictions[jj][ii]) for jj in range(len(all_prompt_predictions))])
+                fout.write(s + "\n")
+
+
+def compute_metrics(logprobs, num_examples, num_targets, num_prompts, golds=None, metrics=None, fout_name=None):
     predictions = [[] for _ in range(num_prompts)]
     avg_ensemble_predictions = []
     idx = 0
@@ -33,19 +55,21 @@ def compute_metrics(logprobs, num_examples, num_targets, num_prompts, golds=None
 
     results = {}
     for k, v in prompt_metrics[0].items():
-        all_preds = [pptm[k]*100 for pptm in prompt_metrics]
-        results["max_" + k] = round(np.max(all_preds), 2)
-        results["median_" + k] = round(np.median(all_preds), 2)
-        results["mean_" + k] = round(np.mean(all_preds), 2)
-        results["min_" + k] = round(np.min(all_preds), 2)
-        results["std_" + k] = round(np.var(all_preds), 2)
+        all_metrics = [pptm[k]*100 for pptm in prompt_metrics]
+        results["max_" + k] = round(np.max(all_metrics), 2)
+        results["median_" + k] = round(np.median(all_metrics), 2)
+        results["mean_" + k] = round(np.mean(all_metrics), 2)
+        results["min_" + k] = round(np.min(all_metrics), 2)
+        results["std_" + k] = round(np.std(all_metrics), 2)
 
     for k, v in ensemble_metrics.items():
         results["ensemble_avg" + k] = round(v * 100, 2)
 
+    write_results_to_file(fout_name, prompt_metrics, predictions, ensemble_metrics, avg_ensemble_predictions)
     return results
 
-def summarize_metrics(predictions, avg_ensemble_predictions, golds, metrics):
+
+def summarize_metrics(predictions, avg_ensemble_predictions, golds, metrics, fout_name=None):
     prompt_metrics = []
     for ppred in predictions:
         prompt_metrics.append(metrics.compute(predictions=ppred, references=golds))
@@ -53,14 +77,16 @@ def summarize_metrics(predictions, avg_ensemble_predictions, golds, metrics):
 
     results = {}
     for k, v in prompt_metrics[0].items():
-        all_preds = [pptm[k]*100 for pptm in prompt_metrics]
-        results["max_" + k] = round(np.max(all_preds), 2)
-        results["median_" + k] = round(np.median(all_preds), 2)
-        results["mean_" + k] = round(np.mean(all_preds), 2)
-        results["min_" + k] = round(np.min(all_preds), 2)
-        results["std_" + k] = round(np.var(all_preds), 2)
+        all_metrics = [pptm[k]*100 for pptm in prompt_metrics]
+        results["max_" + k] = round(np.max(all_metrics), 2)
+        results["median_" + k] = round(np.median(all_metrics), 2)
+        results["mean_" + k] = round(np.mean(all_metrics), 2)
+        results["min_" + k] = round(np.min(all_metrics), 2)
+        results["std_" + k] = round(np.std(all_metrics), 2)
 
     for k, v in ensemble_metrics.items():
         results["ensemble_avg" + k] = round(v * 100, 2)
 
+    if fout_name is not None:
+        write_results_to_file(fout_name, prompt_metrics, predictions, ensemble_metrics, avg_ensemble_predictions)
     return results

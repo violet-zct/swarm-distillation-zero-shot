@@ -9,7 +9,11 @@
 #SBATCH --time=0
 ##SBATCH --array=0
 
+module load gcc/8.3.0
+module load vim tmux cuda/11.1-1
 source activate tride
+
+# tir cluster
 export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
 export HF_DATASETS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
 export HF_METRICS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
@@ -27,21 +31,43 @@ export WANDB_MODE=offline
 export WANDB_PROJECT=gaogao
 export WANDB_WATCH="false"
 
+export TOKENIZERS_PARALLELISM="false"
 DATE=`date +%Y%m%d`
 
-dataset="anli"
-test_mode="t0"
-testset_name="test_r1"
-model="bigscience/T0_3B"
+dataset="super_glue"
+subset="rte"
+pbsz=2
+testset_name="validation"
 
-exp_name={test_mode}.${dataset}.${testset_name}
+peft="prompt_tuning"
+pL=3
+lr=3e-5
+lr_scheduler_type="polynomial"
+max_steps=50
+max_epochs=50
+log_steps=10
+debugsize=-1
+
+test_mode="ttt_t0"
+model="bigscience/T0pp"
+
+exp_name=${test_mode}.${dataset}.${subset}.${testset_name}.${model}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
+cp ${0} ${SAVE}/run.sh
 
-deepspeed examples/pytorch/t0-zero-shot/run_t0.py \
+deepspeed --num_gpus=4 examples/pytorch/t0-zero-shot/run_t0.py \
   --deepspeed deepspeed_configs/ds_config.json \
-  --dataset_name ${dataset} --prompt_set_name ${dataset} --testset_name ${testset_name} \
-  --model_name_or_path ${model} --per_device_train_batch_size 1   \
+  --dataset_name ${dataset} --subset_name ${subset} --prompt_set_name ${dataset} --testset_name ${testset_name} \
+  --model_name_or_path ${model} --per_device_train_batch_size ${pbsz}  --per_device_eval_batch_size 10 \
   --test_mode ${test_mode} --cache_dir ${cache_dir} \
-  --output_dir ${SAVE} --overwrite_output_dir --fp16 \
+  --debug_size ${debugsize} \
+  --peft_option ${peft} --prompt_tuning_L ${pL} \
+  --do_train --logging_steps ${log_steps} --num_train_epochs ${max_epochs} --max_steps ${max_steps} \
+  --adam_beta1 0.9 \
+  --adam_beta2 0.98 \
+  --adam_epsilon 1e-6 \
+  --learning_rate ${lr} \
+  --lr_scheduler_type ${lr_scheduler_type} \
+  --output_dir ${SAVE} --overwrite_output_dir --fp16 --report_to "none" \
   --disable_tqdm "True" 2>&1 | tee ${SAVE}/log.txt

@@ -1,4 +1,5 @@
 import math
+import os.path
 
 import torch
 
@@ -34,13 +35,14 @@ def chunks(tot, bsz):
     return batches
 
 
-def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16, data_collator, metrics):
+def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16, data_collator, metrics, model_name):
     # print("world size = {}".format(torch.distributed.get_world_size()))
     # ds_engine = deepspeed.init_inference(model, mp_size=torch.distributed.get_world_size(),
     #                                  dtype=torch.half if fp16 else torch.float,
     #                                  checkpoint=None,
     #                                  replace_method='auto')
     # model = ds_engine.module
+    fout_name = "results/" + "_".join([data_args.dataset_name, data_args.subset_name, model_name])
     model.eval()
     if fp16:
         model = model.half()
@@ -78,7 +80,8 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16,
         if processed_batch % 10 == 0:
             logger.info("evaluating {} batches of test examples".format(processed_batch))
 
-    results = compute_metrics(all_loglikelihoods, len(test_data), test_data.num_choices, test_data.num_prompts, golds, metrics)
+    results = compute_metrics(all_loglikelihoods, len(test_data), test_data.num_choices, test_data.num_prompts, golds,
+                              metrics, fout_name=fout_name)
     for k, v in results.items():
         logger.info("{} = {}".format(k, v))
 
@@ -154,7 +157,7 @@ def main():
         )
         model.resize_token_embeddings(len(tokenizer))
         batched_evalute_t0(model, tokenizer, test_data, data_args, training_args.per_gpu_eval_batch_size,
-                           training_args.fp16, data_collator, metrics)
+                           training_args.fp16, data_collator, metrics, model_args.model_name_or_path)
     elif test_args.test_mode == "ttt_t0":
         def _model_init():
             # very slow
@@ -207,7 +210,8 @@ def main():
             logger.info("Finish TTT of example {}, avg ensemble pred = {}, "
                         "gold label = {}".format(i, avg_ensemble_pred, golds[-1]))
 
-        results = summarize_metrics(predictions, avg_ensemble_predictions, golds, metrics)
+        fout_name = "results/" + training_args.output_dir
+        results = summarize_metrics(predictions, avg_ensemble_predictions, golds, metrics, fout_name=fout_name)
         for k, v in results.items():
             logger.info("{} = {}".format(k, v))
 
