@@ -1167,7 +1167,7 @@ class Trainer:
             self.deepspeed = deepspeed_engine
             self.optimizer = optimizer
             self.lr_scheduler = lr_scheduler
-        elif args.deepspeed and self.deepspeed and not reinit_model:
+        elif args.deepspeed and self.deepspeed and not reinit_model and getattr(self.args, 'test_mode', 'none') == 'ttt_t0':
             # init trainer
             with torch.no_grad():
                 for n, p in self.model.named_parameters():
@@ -1183,6 +1183,18 @@ class Trainer:
             self.model_wrapped.optimizer.state = defaultdict(dict)
             self.model_wrapped._configure_lr_scheduler(None)
         elif not delay_optimizer_creation:
+            if getattr(self.args, 'test_mode', 'none') == 'ttt_t0' and not reinit_model:
+                # init trainer
+                with torch.no_grad():
+                    for n, p in self.model.named_parameters():
+                        if self.args.peft_option == 'prompt_tuning' and "ef_" in n:
+                            p.data.normal_(mean=0.0, std=0.02)
+                            p.requires_grad = True
+                        elif self.args.peft_option == 'bitfit' and "bias" in n:
+                            # todo: how to recover original bias params?
+                            pass
+                        else:
+                            p.requires_grad = False
             self.create_optimizer_and_scheduler(num_training_steps=max_steps)
 
         self.state = TrainerState()
@@ -1192,7 +1204,7 @@ class Trainer:
         if args.gradient_checkpointing:
             self.model.gradient_checkpointing_enable()
 
-        model = self._wrap_model(self.model_wrapped)  # deepspeed engine
+        model = self._wrap_model(self.model_wrapped)  # if deepspeed: deepspeed engine
 
         # for the rest of this function `model` is the outside model, whether it was wrapped or not
         if model is not self.model:
@@ -1905,7 +1917,7 @@ class Trainer:
             self._past = outputs[self.args.past_index]
 
         training = model.module.training if self.args.deepspeed else model.training
-        if hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0' and training:
+        if getattr(self.args, 'test_mode', 'none') == 'ttt_t0' and training:
             logprobs = outputs.loss
             # fixme
             # logger.info("rank = {}, logprobs = {}".format(torch.distributed.get_rank(), logprobs.size()))
@@ -1920,7 +1932,7 @@ class Trainer:
             #fixme
             # print(
             #     "rank = {}, loss= {}".format(torch.distributed.get_rank(), loss))
-        elif hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0' and not training:
+        elif getattr(self.args, 'test_mode', 'none') == 'ttt_t0' and not training:
             loss = outputs.loss
             #fixme
             # print(

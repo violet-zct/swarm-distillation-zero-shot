@@ -10,7 +10,7 @@ def index_median(array):
     return h
 
 
-def write_results_to_file(fout_name, all_prompt_metrics, all_prompt_predictions, avg_ensemble_metrics, avg_ensemble_preds):
+def write_results_to_file(fout_name, all_prompt_metrics, all_prompt_predictions, avg_ensemble_metrics, avg_ensemble_preds, golds):
     for k, v in all_prompt_metrics[0].items():
         results = {}
         all_metrics = [pptm[k] * 100 for pptm in all_prompt_metrics]
@@ -26,7 +26,7 @@ def write_results_to_file(fout_name, all_prompt_metrics, all_prompt_predictions,
             fout.write(",".join(["{}={}".format(kk, vv) for kk, vv in results.items()]) + "\n")
             # output predictions of prompts for each example
             for ii in range(len(all_prompt_predictions[0])):
-                s = ",".join(["median={}".format(median_prompt[ii]), "max={}".format(max_prompt[ii]), "esemb={}".format(avg_ensemble_preds[ii])]) + ","
+                s = ",".join(["gold={}".format(golds[ii]), "median={}".format(median_prompt[ii]), "max={}".format(max_prompt[ii]), "esemb={}".format(avg_ensemble_preds[ii])]) + ","
                 s += " ".join([str(all_prompt_predictions[jj][ii]) for jj in range(len(all_prompt_predictions))])
                 fout.write(s + "\n")
 
@@ -72,7 +72,7 @@ def compute_metrics(logprobs, num_examples, num_targets, num_prompts, golds=None
     for k, v in ensemble_metrics.items():
         results["ensemble_avg" + k] = round(v * 100, 2)
 
-    write_results_to_file(fout_name, prompt_metrics, predictions, ensemble_metrics, avg_ensemble_predictions)
+    write_results_to_file(fout_name, prompt_metrics, predictions, ensemble_metrics, avg_ensemble_predictions, golds)
     return results
 
 
@@ -95,5 +95,5 @@ def summarize_metrics(predictions, avg_ensemble_predictions, golds, metrics, fou
         results["ensemble_avg" + k] = round(v * 100, 2)
 
     if fout_name is not None:
-        write_results_to_file(fout_name, prompt_metrics, predictions, ensemble_metrics, avg_ensemble_predictions)
+        write_results_to_file(fout_name, prompt_metrics, predictions, ensemble_metrics, avg_ensemble_predictions, golds)
     return results

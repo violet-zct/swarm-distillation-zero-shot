@@ -1677,9 +1677,14 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             # TODO(thom): Add z_loss https://github.com/tensorflow/mesh/blob/fa19d69eafc9a482aff0b59ddd96b025c0cb207d/mesh_tensorflow/layers.py#L666
         if hasattr(self.config, "test_mode"):
             loss = -loss.view(labels.size())  # log likelihood
-            target_mask = (labels != self.config.pad_token_id)
+            target_mask = (labels != -100)
             target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
             loss = (loss * target_mask).sum(1)
+            #
+            # outputs = torch.vstack(outputs)
+            # masked_logits = targets["attention_mask"].unsqueeze(-1) * outputs
+            # seq_token_probs = torch.gather(masked_logits, -1, targets["input_ids"].unsqueeze(-1))
+            # seq_prob = seq_token_probs.squeeze(dim=-1).sum(dim=-1)
 
         if not return_dict:
             output = (lm_logits,) + decoder_outputs[1:] + encoder_outputs
