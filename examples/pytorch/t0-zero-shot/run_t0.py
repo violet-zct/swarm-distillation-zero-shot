@@ -21,7 +21,7 @@ from transformers import (
 )
 from ttt.options import *
 from ttt.utils import compute_metrics, summarize_metrics
-from ttt.dataloader import DatasetByPrompt, TTTDataset
+from ttt.dataloader import DatasetByPrompt, TTTDataset, TTTOfflineDataset, TTTEvalDataset
 import logging
 
 # reload the t0 model after each test point or reset the biases when using bitfit;
@@ -146,6 +146,27 @@ def main():
     else:
         metrics = datasets.load_metric(test_args.metric_name, cache_dir=model_args.cache_dir)
 
+    def _model_init():
+        # very slow
+        model = AutoModelForSeq2SeqLM.from_pretrained(
+            model_args.model_name_or_path,
+            from_tf=bool(".ckpt" in model_args.model_name_or_path),
+            config=config,
+            cache_dir=model_args.cache_dir,
+            revision=model_args.model_revision,
+            use_auth_token=True if model_args.use_auth_token else None,
+        )
+        for n, p in model.named_parameters():
+            if test_args.peft_option == 'bitfit' and "bias" in n:
+                print("tune " + n)
+                p.requires_grad = True
+            elif test_args.peft_option == 'prompt_tuning' and "ef_" in n:
+                print("tune " + n)
+                p.requires_grad = True
+            else:
+                p.requires_grad = False
+        return model
+
     if test_args.test_mode == "t0":
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_args.model_name_or_path,
@@ -158,28 +179,7 @@ def main():
         model.resize_token_embeddings(len(tokenizer))
         batched_evalute_t0(model, tokenizer, test_data, data_args, training_args.per_gpu_eval_batch_size,
                            training_args.fp16, data_collator, metrics, model_args.model_name_or_path)
-    elif test_args.test_mode == "ttt_t0":
-        def _model_init():
-            # very slow
-            model = AutoModelForSeq2SeqLM.from_pretrained(
-                model_args.model_name_or_path,
-                from_tf=bool(".ckpt" in model_args.model_name_or_path),
-                config=config,
-                cache_dir=model_args.cache_dir,
-                revision=model_args.model_revision,
-                use_auth_token=True if model_args.use_auth_token else None,
-            )
-            for n, p in model.named_parameters():
-                if test_args.peft_option == 'bitfit' and "bias" in n:
-                    print("tune " + n)
-                    p.requires_grad = True
-                elif test_args.peft_option == 'prompt_tuning' and "ef_" in n:
-                    print("tune " + n)
-                    p.requires_grad = True
-                else:
-                    p.requires_grad = False
-            return model
-
+    elif test_args.test_mode == "ttt_t0" and test_args.train_data_source == 'stream':
         predictions = [[] for _ in range(test_data.num_prompts)]
         avg_ensemble_predictions = []
         golds = []
@@ -214,6 +214,31 @@ def main():
         results = summarize_metrics(predictions, avg_ensemble_predictions, golds, metrics, fout_name=fout_name)
         for k, v in results.items():
             logger.info("{} = {}".format(k, v))
+    else:
+        model = _model_init()
+        if test_args.train_data_source == 'train':
+            train_set = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, split='train')
+            train_data = TTTOfflineDataset(train_set, test_args, test_args.train_random_n_prompts)
+        else:
+            train_data = TTTOfflineDataset(test_data, test_args, test_args.train_random_n_prompts)
+        test_data = TTTEvalDataset(test_data)
+
+        trainer = Trainer(
+            model=model,
+            train_dataset=train_data,
+            eval_dataset=test_data,
+            args=training_args,
+            tokenizer=tokenizer,
+            data_collator=data_collator,
+            compute_metrics=compute_metrics,  # todo: add metrics
+            additional_metrics=metrics,
+        )
+
+        trainer.train(resume_from_checkpoint=None)
+        eval_results = trainer.evaluate()
+        for k, v in eval_results.items():
+            logger.info("{} = {}".format(k, v))
+
 
 def _mp_fn(index):
     # For xla_spawn (TPUs)

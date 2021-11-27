@@ -282,6 +282,7 @@ class Trainer:
         compute_metrics: Optional[Callable[[EvalPrediction], Dict]] = None,
         callbacks: Optional[List[TrainerCallback]] = None,
         optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (None, None),
+        additional_metrics=None,
     ):
         if args is None:
             output_dir = "tmp_trainer"
@@ -383,6 +384,7 @@ class Trainer:
         self.model = model
 
         self.compute_metrics = compute_metrics
+        self.additional_metrics = additional_metrics
         self.optimizer, self.lr_scheduler = optimizers
         if model_init is not None and (self.optimizer is not None or self.lr_scheduler is not None):
             raise RuntimeError(
@@ -1195,6 +1197,7 @@ class Trainer:
                             pass
                         else:
                             p.requires_grad = False
+                self.optimizer, self.lr_scheduler = None, None
             self.create_optimizer_and_scheduler(num_training_steps=max_steps)
 
         self.state = TrainerState()
@@ -1924,11 +1927,16 @@ class Trainer:
             num_targets = self.train_dataset.num_choices
             assert len(logprobs) % num_targets == 0
             probs = logprobs.exp().view(-1, num_targets)
-            normalized_probs = probs / (probs.sum(1, keepdims=True))
-            #fixme
-            # logger.info("rank = {}, normalized probs size= {}, probs = {}".format(torch.distributed.get_rank(), normalized_probs.size(), normalized_probs))
-            marginal_probs = normalized_probs.mean(0)
-            loss = -(marginal_probs * marginal_probs.log()).sum()
+            normalized_probs = probs / (probs.sum(1, keepdims=True))  # (random_n_prompts x bsz) x n_targets
+            random_n_prompts = self.train_dataset.random_n_prompts if hasattr(self.train_dataset, 'random_n_prompts') \
+                else normalized_probs.size(0)
+            normalized_probs = normalized_probs.view(-1, random_n_prompts, normalized_probs.size(-1))
+            marginal_probs = normalized_probs.mean(1)  # bsz x n_targets
+            loss = -(marginal_probs * marginal_probs.log()).sum(1).mean()
+            # fixme: logger.info("rank = {}, normalized probs size= {}, probs = {}".format(torch.distributed.get_rank(), normalized_probs.size(), normalized_probs))
+            # marginal_probs = normalized_probs
+            # marginal_probs = normalized_probs.mean(0)
+            # loss = -(marginal_probs * marginal_probs.log()).sum()
             #fixme
             # print(
             #     "rank = {}, loss= {}".format(torch.distributed.get_rank(), loss))
@@ -2418,7 +2426,14 @@ class Trainer:
 
         # Metrics!
         if self.compute_metrics is not None and hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0':
-            preds = self.compute_metrics(all_losses, 1, self.eval_dataset.num_choices, self.eval_dataset.num_prompts,)
+            eval_datasize = 1 if self.args.train_data_source == 'stream' else len(self.eval_dataset)
+            if self.args.train_data_source == 'stream':
+                preds = self.compute_metrics(all_losses, 1, self.eval_dataset.num_choices, self.eval_dataset.num_prompts,)
+            else:
+                preds = self.compute_metrics(all_losses, eval_datasize, self.eval_dataset.num_choices,
+                                             self.eval_dataset.num_prompts, self.eval_dataset.gold_labels,
+                                             self.additional_metrics,
+                                             fout_name = "results/" + self.args.output_dir)
             return EvalLoopOutput(predictions=preds, label_ids=None, metrics=None, num_samples=1)
         elif self.compute_metrics is not None and all_preds is not None and all_labels is not None:
             metrics = self.compute_metrics(EvalPrediction(predictions=all_preds, label_ids=all_labels))

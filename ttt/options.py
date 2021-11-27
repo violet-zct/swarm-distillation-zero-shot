@@ -75,7 +75,7 @@ class TestArguments:
 
     train_data_source: Optional[str] = field(
         default="stream",
-        metadata={"choices": ["stream", "unlimited"],
+        metadata={"choices": ["stream", "train", "test"],
                   "help": "stream trains on one single test data"}
     )
 
@@ -108,4 +108,9 @@ class TestArguments:
 
     metric_name: Optional[str] = field(
         default="none",
+    )
+
+    train_random_n_prompts: Optional[int] = field(
+        default=3,
+        metadata={"help": "number of prompts for one single example when minimizing the entropy"}
     )

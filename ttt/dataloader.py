@@ -2,13 +2,16 @@ from promptsource.templates import DatasetTemplates
 import datasets
 from torch.utils.data import Dataset
 import torch
+import numpy as np
 
 
 class DatasetByPrompt(Dataset):
     # used for test, maybe need to extend this class for open-ended generation tasks
-    def __init__(self, args, cache_dir, tokenizer):
+    def __init__(self, args, cache_dir, tokenizer, split=None):
         super().__init__()
         self.cache_dir = cache_dir
+
+        self.split = split
         self.DATASET_NAME = args.dataset_name
         self.SUBSET_NAME = args.subset_name if args.subset_name != "none" else None
         self.TESTSET_NAME = args.testset_name
@@ -25,7 +28,8 @@ class DatasetByPrompt(Dataset):
                                                                                  len(self)))
 
     def load(self):
-        self.dataset = datasets.load_dataset(self.DATASET_NAME, self.SUBSET_NAME, cache_dir=self.cache_dir)[self.TESTSET_NAME]
+        self.dataset = datasets.load_dataset(self.DATASET_NAME, self.SUBSET_NAME,
+                                             cache_dir=self.cache_dir)[self.TESTSET_NAME if self.split is None else self.split]
 
     @property
     def num_prompts(self):
@@ -79,12 +83,65 @@ class TTTDataset(Dataset):
     def __init__(self, test_dataset, test_args, idx=-1):
         super().__init__()
         train_data_form = test_args.train_data_source
-        if train_data_form == 'stream':
-            assert idx >= 0
-            self.dataset, self.gold_label = test_dataset[idx]
-        else:
-            # todo: this is bugged
-            self.dataset, self.gold_label = self.construct_dataset(test_dataset)
+        assert train_data_form == 'stream'
+        assert idx >= 0
+        self.dataset, self.gold_label = test_dataset[idx]
+
+        self.num_choices = test_dataset.num_choices
+        self.num_prompts = test_dataset.num_prompts
+        self.original_task_prompts = test_dataset.original_task_prompts
+
+    def __getitem__(self, idx):
+        return self.dataset[idx * self.num_choices: (idx+1) * self.num_choices]
+
+    def __len__(self):
+        return self.num_prompts
+
+    @property
+    def num_examples(self):
+        return self.num_prompts * self.num_choices
+
+
+class TTTOfflineDataset(Dataset):
+    def __init__(self, test_dataset, test_args, random_n_prompts):
+        super().__init__()
+        train_data_form = test_args.train_data_source
+        assert train_data_form != 'stream'
+
+        self.random_n_prompts = random_n_prompts
+
+        self.dataset, self.gold_labels = self.construct_dataset(test_dataset)
+        self.datasize = len(test_dataset)
+
+        self.num_choices = test_dataset.num_choices
+        self.num_prompts = test_dataset.num_prompts
+        self.tot_single_ds_size = self.num_prompts * self.num_choices
+        self.original_task_prompts = test_dataset.original_task_prompts
+
+    def construct_dataset(self, dataset: DatasetByPrompt):
+        all_data = []
+        labels = []
+        for examples, label in dataset:
+            all_data.extend(examples)
+            labels.append(label)
+        return all_data, labels
+
+    def __getitem__(self, idx):
+        random_prompts = np.random.choice(self.num_prompts, self.random_n_prompts, replace=False)
+        results = []
+        s = idx * self.tot_single_ds_size
+        for rp in random_prompts:
+            results.extend(self.dataset[s+rp*self.num_choices : s+(rp+1)*self.num_choices])
+        return results
+
+    def __len__(self):
+        return self.datasize
+
+
+class TTTEvalDataset(Dataset):
+    def __init__(self, test_dataset):
+        super().__init__()
+        self.dataset, self.gold_labels = self.construct_dataset(test_dataset)
 
         self.num_choices = test_dataset.num_choices
         self.num_prompts = test_dataset.num_prompts
@@ -99,11 +156,7 @@ class TTTDataset(Dataset):
         return all_data, labels
 
     def __getitem__(self, idx):
-        return self.dataset[idx * self.num_choices: (idx+1) * self.num_choices]
+        return self.dataset[idx]
 
     def __len__(self):
-        return self.num_prompts
-
-    @property
-    def num_examples(self):
-        return self.num_prompts * self.num_choices
+        return len(self.dataset)
