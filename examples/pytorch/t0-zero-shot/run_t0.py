@@ -42,7 +42,7 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16,
     #                                  checkpoint=None,
     #                                  replace_method='auto')
     # model = ds_engine.module
-    fout_name = "results/" + "_".join([data_args.dataset_name, data_args.subset_name, model_name.replace("/", "_")])
+    fout_name = "results/" + "_".join([data_args.dataset_name, data_args.subset_name, model_name])
     model.eval()
     if fp16:
         model = model.half()
@@ -89,6 +89,7 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16,
 def main():
     parser = HfArgumentParser((ModelArguments, DataArguments, TrainingArguments, TestArguments))
     model_args, data_args, training_args, test_args = parser.parse_args_into_dataclasses()
+    model_args.model_name_or_path = "bigscience/" + model_args.model_name_or_path
 
     # Setup logging
     logging.basicConfig(
@@ -210,7 +211,7 @@ def main():
             logger.info("Finish TTT of example {}, avg ensemble pred = {}, "
                         "gold label = {}".format(i, avg_ensemble_pred, golds[-1]))
 
-        fout_name = training_args.output_dir.replace('bigscience/T0', 'bigscience.T0')
+        fout_name = training_args.output_dir
         results = summarize_metrics(predictions, avg_ensemble_predictions, golds, metrics, fout_name=fout_name)
         for k, v in results.items():
             logger.info("{} = {}".format(k, v))
