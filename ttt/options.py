@@ -8,7 +8,7 @@ class ModelArguments:
     """
 
     model_name_or_path: str = field(
-        metadata={"choices": ["bigscience/T0_3B", "bigscience/T0pp", "bigscience/T0"],
+        metadata={"choices": ["T0_3B", "T0pp", "T0"],
                 "help": "Path to pretrained model or model identifier from huggingface.co/models"}
     )
     config_name: Optional[str] = field(
