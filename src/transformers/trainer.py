@@ -2360,7 +2360,7 @@ class Trainer:
                 else:
                     losses = self._nested_gather(loss.repeat(batch_size))
                 losses_host = losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
-            if logits is not None:
+            if logits is not None and not hasattr(self.args, 'test_mode'):
                 logits = self._pad_across_processes(logits)
                 logits = self._nested_gather(logits)
                 preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
@@ -2426,14 +2426,14 @@ class Trainer:
 
         # Metrics!
         if self.compute_metrics is not None and hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0':
-            eval_datasize = 1 if self.args.train_data_source == 'stream' else len(self.eval_dataset)
+            eval_datasize = 1 if self.args.train_data_source == 'stream' else self.eval_dataset.num_instances
             if self.args.train_data_source == 'stream':
                 preds = self.compute_metrics(all_losses, 1, self.eval_dataset.num_choices, self.eval_dataset.num_prompts,)
             else:
                 preds = self.compute_metrics(all_losses, eval_datasize, self.eval_dataset.num_choices,
                                              self.eval_dataset.num_prompts, self.eval_dataset.gold_labels,
                                              self.additional_metrics,
-                                             fout_name = "results/" + self.args.output_dir)
+                                             fout_name=self.args.output_dir.replace('bigscience/T0', 'bigscience.T0'))
             return EvalLoopOutput(predictions=preds, label_ids=None, metrics=None, num_samples=1)
         elif self.compute_metrics is not None and all_preds is not None and all_labels is not None:
             metrics = self.compute_metrics(EvalPrediction(predictions=all_preds, label_ids=all_labels))

@@ -1,8 +1,10 @@
 from promptsource.templates import DatasetTemplates
 import datasets
 from torch.utils.data import Dataset
-import torch
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class DatasetByPrompt(Dataset):
@@ -105,6 +107,7 @@ class TTTDataset(Dataset):
 class TTTOfflineDataset(Dataset):
     def __init__(self, test_dataset, test_args, random_n_prompts):
         super().__init__()
+        logger.info("Building TTT training set: {}!".format(test_args.train_data_source))
         train_data_form = test_args.train_data_source
         assert train_data_form != 'stream'
 
@@ -141,6 +144,8 @@ class TTTOfflineDataset(Dataset):
 class TTTEvalDataset(Dataset):
     def __init__(self, test_dataset):
         super().__init__()
+        logger.info("Building TTT evaluation test set!")
+        self.num_instances = len(test_dataset)
         self.dataset, self.gold_labels = self.construct_dataset(test_dataset)
 
         self.num_choices = test_dataset.num_choices

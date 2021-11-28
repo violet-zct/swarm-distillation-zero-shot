@@ -210,7 +210,7 @@ def main():
             logger.info("Finish TTT of example {}, avg ensemble pred = {}, "
                         "gold label = {}".format(i, avg_ensemble_pred, golds[-1]))
 
-        fout_name = "results/" + training_args.output_dir
+        fout_name = training_args.output_dir.replace('bigscience/T0', 'bigscience.T0')
         results = summarize_metrics(predictions, avg_ensemble_predictions, golds, metrics, fout_name=fout_name)
         for k, v in results.items():
             logger.info("{} = {}".format(k, v))

@@ -75,7 +75,7 @@ class TestArguments:
 
     train_data_source: Optional[str] = field(
         default="stream",
-        metadata={"choices": ["stream", "train", "test"],
+        metadata={"choices": ["stream", "train", "validation"],
                   "help": "stream trains on one single test data"}
     )
 
