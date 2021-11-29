@@ -1920,6 +1920,7 @@ class Trainer:
             self._past = outputs[self.args.past_index]
 
         training = model.module.training if self.args.deepspeed else model.training
+        # this can actually be moved to modeling_t5.py
         if getattr(self.args, 'test_mode', 'none') == 'ttt_t0' and training:
             logprobs = outputs.loss
             # fixme

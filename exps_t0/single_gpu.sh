@@ -32,18 +32,18 @@ DATE=`date +%Y%m%d`
 dataset="anli"
 subset="none"
 bsz=100
-testset_name="test_r1"
+testset_name="dev_r1"
 
 dataset="super_glue"
 subset="cb"
-bsz=50
-testset_name="test"
+bsz=1
+testset_name="validation"
 
 test_mode="t0"
 model="bigscience/T0_3B"
 model="bigscience/T0pp"
 
-exp_name={test_mode}.${dataset}.${testset_name}
+exp_name=${test_mode}.${dataset}.${testset_name}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
