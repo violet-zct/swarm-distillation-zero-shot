@@ -19,14 +19,15 @@ class DatasetByPrompt(Dataset):
         self.TESTSET_NAME = args.testset_name
         self.PROMPTSET_NAME = args.prompt_set_name  # has subset name?
         self.task_type = args.task_type
-        self.num_choices = -1  # set later
         self.load()
 
         self.tokenizer = tokenizer
         self.prompts = DatasetTemplates(self.PROMPTSET_NAME, self.SUBSET_NAME)
         self.original_task_prompts = self.extract_original_task_prompts()
-        print("{} has {} original task prompts, total test examples = {}".format(self.DATASET_NAME + ("/" + self.SUBSET_NAME) if self.SUBSET_NAME is not None else "",
+        self.num_choices = len(self.prompts[self.original_task_prompts[0]].get_answer_choices_list(self.dataset[0]))
+        print("{} has {} original task prompts, number choices = {}, total test examples = {}".format(self.DATASET_NAME + ("/" + self.SUBSET_NAME) if self.SUBSET_NAME is not None else "",
                                                                                  len(self.original_task_prompts),
+                                                                                 self.num_choices,
                                                                                  len(self)))
 
     def load(self):

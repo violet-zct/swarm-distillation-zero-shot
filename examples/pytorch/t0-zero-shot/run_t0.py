@@ -142,6 +142,7 @@ def main():
     )
     test_data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer)
 
+    config.num_choices = test_data.num_choices
     if test_args.metric_name == "none":
         metrics = datasets.load_metric(data_args.dataset_name, data_args.subset_name, cache_dir=model_args.cache_dir)
     else:

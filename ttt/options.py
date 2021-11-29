@@ -111,6 +111,17 @@ class TestArguments:
     )
 
     train_random_n_prompts: Optional[int] = field(
-        default=3,
+        default=-1,
         metadata={"help": "number of prompts for one single example when minimizing the entropy"}
+    )
+
+    prob_temperature: Optional[float] = field(
+        default=1.,
+        metadata={"help": "peakify the probability distribution"}
+    )
+
+    combine_option: Optional[str] = field(
+        default="uniform",
+        metadata={"help": "how to compute marginal distribution",
+                  "choices": ["uniform", "entropy"]}
     )

@@ -1774,19 +1774,24 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
             loss = (loss * target_mask).sum(1)
             #
-            if getattr(self.args, 'test_mode', 'none') == 'ttt_t0' and self.training:
+            if getattr(self.config, 'test_mode', 'none') == 'ttt_t0' and self.training:
                 logprobs = loss
                 # fixme
                 # logger.info("rank = {}, logprobs = {}".format(torch.distributed.get_rank(), logprobs.size()))
-                num_targets = self.train_dataset.num_choices
+                num_targets = self.config.num_choices
                 assert len(logprobs) % num_targets == 0
                 probs = logprobs.exp().view(-1, num_targets)
+                probs = torch.pow(probs, self.config.prob_temperature)
                 normalized_probs = probs / (probs.sum(1, keepdims=True))  # (random_n_prompts x bsz) x n_targets
-                random_n_prompts = self.train_dataset.random_n_prompts if hasattr(self.train_dataset,
-                                                                                  'random_n_prompts') \
-                    else normalized_probs.size(0)
+                random_n_prompts = self.config.random_n_prompts if getattr(self.config, 'train_random_n_prompts', '-1')  > 0 \
+                                    else normalized_probs.size(0)
                 normalized_probs = normalized_probs.view(-1, random_n_prompts, normalized_probs.size(-1))
-                marginal_probs = normalized_probs.mean(1)  # bsz x n_targets
+                if self.config.combine_option == 'uniform':
+                    marginal_probs = normalized_probs.mean(1)  # bsz x n_targets
+                elif self.config.combine_option == 'entropy':
+                    ents = -(normalized_probs * normalized_probs.log()).sum(-1)  # bsz x n_prompts
+                    ents = ents / (ents.sum(1, keepdims=True))
+                    marginal_probs = (normalized_probs * ents.unsqueeze(-1)).sum(1)
                 loss = -(marginal_probs * marginal_probs.log()).sum(1).mean()
                 # fixme: logger.info("rank = {}, normalized probs size= {}, probs = {}".format(torch.distributed.get_rank(), normalized_probs.size(), normalized_probs))
                 # marginal_probs = normalized_probs
