@@ -38,7 +38,7 @@ def write_results_to_file(fout_name, all_prompt_metrics, all_prompt_predictions,
                 fout.write(s + "\n")
     return results
 
-def compute_metrics(logprobs, num_examples, num_targets, num_prompts, golds=None, metrics=None, fout_name=None, analysis=False):
+def compute_metrics(logprobs, num_examples, num_targets, num_prompts, golds=None, metrics=None, fout_name=None):
     predictions = [[] for _ in range(num_prompts)]
     entropies = [[] for _ in range(num_prompts)]
     avg_ensemble_predictions = []
@@ -55,8 +55,7 @@ def compute_metrics(logprobs, num_examples, num_targets, num_prompts, golds=None
                 normalized_probs[ii] = math.exp(logprobs[idx])
                 idx += 1
             normalized_probs = normalized_probs / normalized_probs.sum()
-            if analysis:
-                entropies[pidx].append(-(normalized_probs * np.log(normalized_probs)).sum())
+            entropies[pidx].append(-(normalized_probs * np.log(normalized_probs)).sum())
             avg_probs += normalized_probs
             predictions[pidx].append(pred_label)
         avg_probs = avg_probs / num_prompts
@@ -69,11 +68,7 @@ def compute_metrics(logprobs, num_examples, num_targets, num_prompts, golds=None
     for ppred in predictions:
         prompt_metrics.append(metrics.compute(predictions=ppred, references=golds))
     ensemble_metrics = metrics.compute(predictions=avg_ensemble_predictions, references=golds)
-
-    if analysis:
-        avg_entropy = [np.mean(ents) for ents in entropies]
-    else:
-        avg_entropy = None
+    avg_entropy = [np.mean(ents) for ents in entropies]
 
     results = write_results_to_file(fout_name, prompt_metrics, predictions, ensemble_metrics, avg_ensemble_predictions, golds, avg_entropy)
     return results
