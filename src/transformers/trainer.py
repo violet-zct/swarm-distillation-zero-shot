@@ -1920,28 +1920,7 @@ class Trainer:
             self._past = outputs[self.args.past_index]
 
         training = model.module.training if self.args.deepspeed else model.training
-        # this can actually be moved to modeling_t5.py
-        if getattr(self.args, 'test_mode', 'none') == 'ttt_t0' and training:
-            logprobs = outputs.loss
-            # fixme
-            # logger.info("rank = {}, logprobs = {}".format(torch.distributed.get_rank(), logprobs.size()))
-            num_targets = self.train_dataset.num_choices
-            assert len(logprobs) % num_targets == 0
-            probs = logprobs.exp().view(-1, num_targets)
-            normalized_probs = probs / (probs.sum(1, keepdims=True))  # (random_n_prompts x bsz) x n_targets
-            random_n_prompts = self.train_dataset.random_n_prompts if hasattr(self.train_dataset, 'random_n_prompts') \
-                else normalized_probs.size(0)
-            normalized_probs = normalized_probs.view(-1, random_n_prompts, normalized_probs.size(-1))
-            marginal_probs = normalized_probs.mean(1)  # bsz x n_targets
-            loss = -(marginal_probs * marginal_probs.log()).sum(1).mean()
-            # fixme: logger.info("rank = {}, normalized probs size= {}, probs = {}".format(torch.distributed.get_rank(), normalized_probs.size(), normalized_probs))
-            # marginal_probs = normalized_probs
-            # marginal_probs = normalized_probs.mean(0)
-            # loss = -(marginal_probs * marginal_probs.log()).sum()
-            #fixme
-            # print(
-            #     "rank = {}, loss= {}".format(torch.distributed.get_rank(), loss))
-        elif getattr(self.args, 'test_mode', 'none') == 'ttt_t0' and not training:
+        if getattr(self.args, 'test_mode', 'none') == 'ttt_t0' and not training:
             loss = outputs.loss
             #fixme
             # print(

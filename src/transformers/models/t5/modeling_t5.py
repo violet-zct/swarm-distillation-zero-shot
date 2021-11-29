@@ -1767,12 +1767,35 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
                 loss_fct = CrossEntropyLoss(ignore_index=-100)
             loss = loss_fct(lm_logits.view(-1, lm_logits.size(-1)), labels.view(-1))
             # TODO(thom): Add z_loss https://github.com/tensorflow/mesh/blob/fa19d69eafc9a482aff0b59ddd96b025c0cb207d/mesh_tensorflow/layers.py#L666
+
         if hasattr(self.config, "test_mode"):
             loss = -loss.view(labels.size())  # log likelihood
             target_mask = (labels != -100)
             target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
             loss = (loss * target_mask).sum(1)
             #
+            if getattr(self.args, 'test_mode', 'none') == 'ttt_t0' and self.training:
+                logprobs = loss
+                # fixme
+                # logger.info("rank = {}, logprobs = {}".format(torch.distributed.get_rank(), logprobs.size()))
+                num_targets = self.train_dataset.num_choices
+                assert len(logprobs) % num_targets == 0
+                probs = logprobs.exp().view(-1, num_targets)
+                normalized_probs = probs / (probs.sum(1, keepdims=True))  # (random_n_prompts x bsz) x n_targets
+                random_n_prompts = self.train_dataset.random_n_prompts if hasattr(self.train_dataset,
+                                                                                  'random_n_prompts') \
+                    else normalized_probs.size(0)
+                normalized_probs = normalized_probs.view(-1, random_n_prompts, normalized_probs.size(-1))
+                marginal_probs = normalized_probs.mean(1)  # bsz x n_targets
+                loss = -(marginal_probs * marginal_probs.log()).sum(1).mean()
+                # fixme: logger.info("rank = {}, normalized probs size= {}, probs = {}".format(torch.distributed.get_rank(), normalized_probs.size(), normalized_probs))
+                # marginal_probs = normalized_probs
+                # marginal_probs = normalized_probs.mean(0)
+                # loss = -(marginal_probs * marginal_probs.log()).sum()
+                # fixme
+                # print(
+                #     "rank = {}, loss= {}".format(torch.distributed.get_rank(), loss))
+
             # outputs = torch.vstack(outputs)
             # masked_logits = targets["attention_mask"].unsqueeze(-1) * outputs
             # seq_token_probs = torch.gather(masked_logits, -1, targets["input_ids"].unsqueeze(-1))
