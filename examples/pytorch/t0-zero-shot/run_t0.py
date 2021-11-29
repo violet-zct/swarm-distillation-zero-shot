@@ -81,7 +81,7 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16,
             logger.info("evaluating {} batches of test examples".format(processed_batch))
 
     results = compute_metrics(all_loglikelihoods, len(test_data), test_data.num_choices, test_data.num_prompts, golds,
-                              metrics, fout_name=fout_name)
+                              metrics, fout_name=fout_name, analysis=True)
     for k, v in results.items():
         logger.info("{} = {}".format(k, v))
 
