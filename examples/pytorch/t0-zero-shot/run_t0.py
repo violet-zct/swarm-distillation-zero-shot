@@ -162,7 +162,7 @@ def main():
             if test_args.peft_option == 'bitfit' and "bias" in n:
                 print("tune " + n)
                 p.requires_grad = True
-            elif test_args.peft_option == 'prompt_tuning' and "ef_" in n:
+            elif test_args.peft_option in ['lora', 'prompt_tuning'] and "ef_" in n:
                 print("tune " + n)
                 p.requires_grad = True
             else:
