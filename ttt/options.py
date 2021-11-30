@@ -120,6 +120,12 @@ class TestArguments:
         metadata={"help": "peakify the probability distribution"}
     )
 
+    loss_option: Optional[str] = field(
+        default="entropy",
+        metadata={"help": "loss type for test mode",
+                  "choices": ["consistency", "entropy"]}
+    )
+
     combine_option: Optional[str] = field(
         default="uniform",
         metadata={"help": "how to compute marginal distribution",
