@@ -1783,7 +1783,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
                 probs = logprobs.exp().view(-1, num_targets)
                 probs = torch.pow(probs, self.config.prob_temperature)
                 normalized_probs = probs / (probs.sum(1, keepdims=True))  # (random_n_prompts x bsz) x n_targets
-                random_n_prompts = self.config.random_n_prompts if getattr(self.config, 'train_random_n_prompts', '-1')  > 0 \
+                random_n_prompts = self.config.train_random_n_prompts if getattr(self.config, 'train_random_n_prompts', '-1')  > 0 \
                                     else normalized_probs.size(0)
                 normalized_probs = normalized_probs.view(-1, random_n_prompts, normalized_probs.size(-1))
                 if self.config.combine_option == 'uniform':
