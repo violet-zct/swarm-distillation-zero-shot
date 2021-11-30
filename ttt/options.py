@@ -94,12 +94,6 @@ class TestArguments:
         default=False,
     )
 
-    prompt_tuning_L: Optional[int] = field(
-        default=3,
-        metadata={
-            "help": "length of prompt vectors"
-        },
-    )
 
     debug_size: Optional[int] = field(
         default=-1,
@@ -124,4 +118,32 @@ class TestArguments:
         default="uniform",
         metadata={"help": "how to compute marginal distribution",
                   "choices": ["uniform", "entropy"]}
+    )
+
+    # parameter-efficient tuning specific options:
+    bottleneck_dim: Optional[int] = field(
+        default=3,
+        metadata={
+            "help": "length of prompt vectors"
+        },
+    )
+
+    # lora
+    lora_alpha: Optional[float] = field(
+        default=4,
+        metadata={
+            "help": ""
+        },
+    )
+
+    lora_pos: Optional[str] = field(
+        default="encdec",
+        metadata={"choices": ["dec", "encdec"]}
+    )
+
+    lora_dropout: Optional[float] = field(
+        default=0.1,
+        metadata={
+            "help": ""
+        },
     )
