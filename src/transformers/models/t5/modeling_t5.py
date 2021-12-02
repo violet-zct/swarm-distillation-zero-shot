@@ -47,7 +47,6 @@ from ...utils.model_parallel_utils import assert_device_map, get_device_map
 from .configuration_t5 import T5Config
 import torch.nn.functional as F
 
-
 logger = logging.get_logger(__name__)
 
 _CONFIG_FOR_DOC = "T5Config"
@@ -344,8 +343,15 @@ class T5LayerNorm(nn.Module):
 class T5DenseReluDense(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.wi = nn.Linear(config.d_model, config.d_ff, bias=False)
-        self.wo = nn.Linear(config.d_ff, config.d_model, bias=False)
+        if getattr(config, 'peft_option', "none") == "lora" and (config.is_decoder or config.lora_pos == 'encdec'):
+            self.wi = Linear(config.d_model, config.d_ff, r=config.bottleneck_dim,
+                               lora_dropout=config.lora_dropout, lora_alpha=config.lora_alpha)
+            self.wo = Linear(config.d_ff, config.d_model, r=config.bottleneck_dim,
+                             lora_dropout=config.lora_dropout, lora_alpha=config.lora_alpha)
+        else:
+            self.wi = nn.Linear(config.d_model, config.d_ff, bias=False)
+            self.wo = nn.Linear(config.d_ff, config.d_model, bias=False)
+
         self.dropout = nn.Dropout(config.dropout_rate)
 
     def forward(self, hidden_states):
@@ -359,9 +365,15 @@ class T5DenseReluDense(nn.Module):
 class T5DenseGatedGeluDense(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.wi_0 = nn.Linear(config.d_model, config.d_ff, bias=False)
+        if getattr(config, 'peft_option', "none") == "lora" and (config.is_decoder or config.lora_pos == 'encdec'):
+            self.wi_0 = Linear(config.d_model, config.d_ff, r=config.bottleneck_dim,
+                               lora_dropout=config.lora_dropout, lora_alpha=config.lora_alpha)
+            self.wo = Linear(config.d_ff, config.d_model, r=config.bottleneck_dim,
+                             lora_dropout=config.lora_dropout, lora_alpha=config.lora_alpha)
+        else:
+            self.wi_0 = nn.Linear(config.d_model, config.d_ff, bias=False)
+            self.wo = nn.Linear(config.d_ff, config.d_model, bias=False)
         self.wi_1 = nn.Linear(config.d_model, config.d_ff, bias=False)
-        self.wo = nn.Linear(config.d_ff, config.d_model, bias=False)
         self.dropout = nn.Dropout(config.dropout_rate)
         self.gelu_act = ACT2FN["gelu_new"]
 
@@ -901,10 +913,10 @@ class T5Stack(T5PreTrainedModel):
         self.embed_tokens = embed_tokens
         self.is_decoder = config.is_decoder
 
-        if not self.is_decoder and hasattr(config, 'peft_option') and config.peft_option == 'prompt_tuning':
-            self.ef_prefix_emb = nn.Embedding(config.prompt_tuning_L, config.d_model)
+        if not self.is_decoder and getattr(config, 'peft_option', "none") == 'prompt_tuning':
+            self.ef_prefix_emb = nn.Embedding(config.bottleneck_dim, config.d_model)
             self.ef_prefix_emb.weight.data.normal_(mean=0.0, std=0.02)  # todo: init with random vocab words
-            self.ef_prefix_input_tokens = torch.arange(config.prompt_tuning_L).long()
+            self.ef_prefix_input_tokens = torch.arange(config.bottleneck_dim).long()
         else:
             self.ef_prefix_emb = None
 
@@ -1020,7 +1032,7 @@ class T5Stack(T5PreTrainedModel):
                 if not self.training and attention_mask.size(1) == input_ids.size(1):
                     # generation time
                     attention_mask = torch.cat(
-                        [torch.ones(bsz, self.config.prompt_tuning_L).to(input_ids.device),
+                        [torch.ones(bsz, self.config.bottleneck_dim).to(input_ids.device),
                          attention_mask], dim=1)
                 seq_length += prefix_embs.size(1)
 
@@ -1688,7 +1700,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         if self.config.peft_option == "prompt_tuning" and encoder_outputs is None:
             # training time
             attention_mask = torch.cat(
-                [torch.ones(input_ids.size(0), self.config.prompt_tuning_L).to(input_ids.device), attention_mask], dim=1)
+                [torch.ones(input_ids.size(0), self.config.bottleneck_dim).to(input_ids.device), attention_mask], dim=1)
 
         # Encode if needed (training, first prediction pass)
         if encoder_outputs is None:
