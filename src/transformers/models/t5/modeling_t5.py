@@ -1820,7 +1820,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
     def _compute_consistency_loss(self, lm_logits, labels):
         # [batch, length]
         target_mask = (labels != -100)
-        # target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
+        target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
         # [batch, length, vocab]
         lm_logits = lm_logits * target_mask.unsqueeze(2)
 
@@ -1848,7 +1848,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         # [batch, length]
         loss = -loss.view(labels.size())  # log likelihood
         target_mask = (labels != -100)
-        # target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
+        target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
         loss = (loss * target_mask).sum(1)
 
         logprobs = loss
