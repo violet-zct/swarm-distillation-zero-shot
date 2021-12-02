@@ -1173,7 +1173,7 @@ class Trainer:
             # init trainer
             with torch.no_grad():
                 for n, p in self.model.named_parameters():
-                    if self.args.peft_option == 'prompt_tuning' and "ef_" in n:
+                    if self.args.peft_option in ['lora', 'prompt_tuning'] and "ef_" in n:
                         p.data.normal_(mean=0.0, std=0.02)
                         p.requires_grad = True
                     elif self.args.peft_option == 'bitfit' and "bias" in n:
@@ -1189,7 +1189,7 @@ class Trainer:
                 # init trainer
                 with torch.no_grad():
                     for n, p in self.model.named_parameters():
-                        if self.args.peft_option == 'prompt_tuning' and "ef_" in n:
+                        if self.args.peft_option in ['lora', 'prompt_tuning'] and "ef_" in n:
                             p.data.normal_(mean=0.0, std=0.02)
                             p.requires_grad = True
                         elif self.args.peft_option == 'bitfit' and "bias" in n:
