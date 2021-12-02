@@ -19,6 +19,7 @@ import copy
 import math
 import os
 import warnings
+import numpy as np
 
 import torch
 from torch import nn
@@ -1769,6 +1770,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             # See https://github.com/tensorflow/mesh/blob/fa19d69eafc9a482aff0b59ddd96b025c0cb207d/mesh_tensorflow/transformer/transformer.py#L586
             sequence_output = sequence_output * (self.model_dim ** -0.5)
 
+        # [batch, length, vocab]
         lm_logits = self.lm_head(sequence_output)
 
         loss = None
@@ -1781,37 +1783,18 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             # TODO(thom): Add z_loss https://github.com/tensorflow/mesh/blob/fa19d69eafc9a482aff0b59ddd96b025c0cb207d/mesh_tensorflow/layers.py#L666
 
         if hasattr(self.config, "test_mode"):
-            loss = -loss.view(labels.size())  # log likelihood
-            target_mask = (labels != -100)
-            target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
-            loss = (loss * target_mask).sum(1)
-            #
             if getattr(self.config, 'test_mode', 'none') == 'ttt_t0' and self.training:
-                logprobs = loss
-                # fixme
-                # logger.info("rank = {}, logprobs = {}".format(torch.distributed.get_rank(), logprobs.size()))
-                num_targets = self.config.num_choices
-                assert len(logprobs) % num_targets == 0
-                probs = logprobs.exp().view(-1, num_targets)
-                probs = torch.pow(probs, self.config.prob_temperature)
-                normalized_probs = probs / (probs.sum(1, keepdims=True))  # (random_n_prompts x bsz) x n_targets
-                random_n_prompts = self.config.train_random_n_prompts if getattr(self.config, 'train_random_n_prompts', '-1')  > 0 \
-                                    else normalized_probs.size(0)
-                normalized_probs = normalized_probs.view(-1, random_n_prompts, normalized_probs.size(-1))
-                if self.config.combine_option == 'uniform':
-                    marginal_probs = normalized_probs.mean(1)  # bsz x n_targets
-                elif self.config.combine_option == 'entropy':
-                    ents = -(normalized_probs * normalized_probs.log()).sum(-1)  # bsz x n_prompts
-                    ents = ents / (ents.sum(1, keepdims=True))
-                    marginal_probs = (normalized_probs * ents.unsqueeze(-1)).sum(1)
-                loss = -(marginal_probs * marginal_probs.log()).sum(1).mean()
-                # fixme: logger.info("rank = {}, normalized probs size= {}, probs = {}".format(torch.distributed.get_rank(), normalized_probs.size(), normalized_probs))
-                # marginal_probs = normalized_probs
-                # marginal_probs = normalized_probs.mean(0)
-                # loss = -(marginal_probs * marginal_probs.log()).sum()
-                # fixme
-                # print(
-                #     "rank = {}, loss= {}".format(torch.distributed.get_rank(), loss))
+                if getattr(self.config, 'loss_option', 'none') == 'entropy':
+                    loss = self._compute_entropy_loss(loss, labels)
+                elif getattr(self.config, 'loss_option', 'none') == 'consistency':
+                    loss = self._compute_consistency_loss(lm_logits, labels)
+                else:
+                    raise ValueError("Unknown loss option: {}".format(getattr(self.config, 'loss_option', 'none')))
+            else:
+                loss = -loss.view(labels.size())  # log likelihood
+                target_mask = (labels != -100)
+                # target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
+                loss = (loss * target_mask).sum(1)
 
             # outputs = torch.vstack(outputs)
             # masked_logits = targets["attention_mask"].unsqueeze(-1) * outputs
@@ -1833,6 +1816,67 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             encoder_hidden_states=encoder_outputs.hidden_states,
             encoder_attentions=encoder_outputs.attentions,
         )
+
+    def _compute_consistency_loss(self, lm_logits, labels):
+        # [batch, length]
+        target_mask = (labels != -100)
+        # target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
+        # [batch, length, vocab]
+        lm_logits = lm_logits * target_mask.unsqueeze(2)
+
+        num_targets = self.config.num_choices
+        bsz, length, vsz = lm_logits.size()
+        assert bsz % num_targets == 0
+        # [batch, length, vocab] -> [b, m, length, vocab]
+        lprobs = F.log_softmax(lm_logits, dim=-1).view(-1, num_targets, length, vsz)
+        bsz = lprobs.size(0)
+        random_n_prompts = self.config.train_random_n_prompts if getattr(self.config, 'train_random_n_prompts', '-1') > 0 else bsz
+        assert bsz % random_n_prompts == 0
+        # [b, n, m, length, vocab]
+        lprobs = lprobs.view(-1, random_n_prompts, num_targets, length, vsz)
+        bsz = lprobs.size(0)
+        # [b, m, length, vocab]
+        lprobs_avg = torch.logsumexp(lprobs, dim=1) - np.log(random_n_prompts)
+        # [b, 1, m, length, vocab]
+        lprobs_avg = lprobs_avg.unsqueeze(1)
+
+        total_tokens = target_mask.sum().float()
+        loss = F.kl_div(lprobs, lprobs_avg, reduction='sum', log_target=True) / total_tokens
+        return loss
+
+    def _compute_entropy_loss(self, loss, labels):
+        # [batch, length]
+        loss = -loss.view(labels.size())  # log likelihood
+        target_mask = (labels != -100)
+        # target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
+        loss = (loss * target_mask).sum(1)
+
+        logprobs = loss
+        # fixme
+        # logger.info("rank = {}, logprobs = {}".format(torch.distributed.get_rank(), logprobs.size()))
+        num_targets = self.config.num_choices
+        assert len(logprobs) % num_targets == 0
+        probs = logprobs.exp().view(-1, num_targets)
+        probs = torch.pow(probs, self.config.prob_temperature)
+        normalized_probs = probs / (probs.sum(1, keepdims=True))  # (random_n_prompts x bsz) x n_targets
+        random_n_prompts = self.config.train_random_n_prompts if getattr(self.config, 'train_random_n_prompts', '-1') > 0 \
+            else normalized_probs.size(0)
+        normalized_probs = normalized_probs.view(-1, random_n_prompts, normalized_probs.size(-1))
+        if self.config.combine_option == 'uniform':
+            marginal_probs = normalized_probs.mean(1)  # bsz x n_targets
+        elif self.config.combine_option == 'entropy':
+            ents = -(normalized_probs * normalized_probs.log()).sum(-1)  # bsz x n_prompts
+            ents = ents / (ents.sum(1, keepdims=True))
+            marginal_probs = (normalized_probs * ents.unsqueeze(-1)).sum(1)
+        loss = -(marginal_probs * marginal_probs.log()).sum(1).mean()
+        # fixme: logger.info("rank = {}, normalized probs size= {}, probs = {}".format(torch.distributed.get_rank(), normalized_probs.size(), normalized_probs))
+        # marginal_probs = normalized_probs
+        # marginal_probs = normalized_probs.mean(0)
+        # loss = -(marginal_probs * marginal_probs.log()).sum()
+        # fixme
+        # print(
+        #     "rank = {}, loss= {}".format(torch.distributed.get_rank(), loss))
+        return loss
 
     def prepare_inputs_for_generation(
         self,
