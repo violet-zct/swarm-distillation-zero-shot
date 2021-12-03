@@ -38,6 +38,7 @@ def write_results_to_file(fout_name, all_prompt_metrics, all_prompt_predictions,
                 fout.write(s + "\n")
     return results
 
+
 def compute_metrics(logprobs, num_examples, num_targets, num_prompts, golds=None, metrics=None, fout_name=None):
     predictions = [[] for _ in range(num_prompts)]
     entropies = [[] for _ in range(num_prompts)]

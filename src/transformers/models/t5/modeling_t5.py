@@ -1902,9 +1902,9 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         lprobs = lprobs.view(-1, random_n_prompts, num_targets, length, vsz)
         bsz = lprobs.size(0)
         # [b, m, length, vocab]
-        lprobs_avg = -torch.logsumexp(lprobs, dim=1) - np.log(random_n_prompts)
+        lprobs_avg = torch.logsumexp(lprobs, dim=1) - np.log(random_n_prompts)
         # [b, m, length]
-        loss = (lprobs_avg.exp() * lprobs_avg).sum()
+        loss = -(lprobs_avg.exp() * lprobs_avg).sum()
 
         total_tokens = target_mask.sum().float()
         loss = loss / total_tokens
