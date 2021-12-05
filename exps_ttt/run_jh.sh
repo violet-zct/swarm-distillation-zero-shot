@@ -50,7 +50,7 @@ lr=3e-5
 lr_scheduler_type="polynomial"
 max_steps=1000
 max_epochs=50
-log_steps=10
+log_steps=20
 debugsize=-1
 
 #loss_opt="token_level_entropy"  # consistency, token_level_entropy, entropy
@@ -58,12 +58,12 @@ debugsize=-1
 loss_opt=consistency
 temp=1.0
 copt="uniform"
-eval_steps=10
+eval_steps=200
 
 test_mode="ttt_t0"
-# train_data="validation"  # test, stream
+train_data="validation"  # test, stream
 #train_data="train"  # test, stream
-train_data="stream"
+# train_data="stream"
 model="T0_3B"
 
 exp_name=${test_mode}.train.source.${train_data}.${dataset}.${subset}.${testset_name}.${model}.np${nprompts}.peft.${peft}.bn${pL}.lora_pos.${lora_pos}.lopt.${loss_opt}.combine.${copt}.temp.${temp}.lr.${lr}

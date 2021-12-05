@@ -2151,7 +2151,6 @@ class Trainer:
         eval_dataloader = self.get_eval_dataloader(eval_dataset)
         start_time = time.time()
 
-        import pdb; pdb.set_trace()
         eval_loop = self.prediction_loop if self.args.use_legacy_prediction_loop else self.evaluation_loop
         output = eval_loop(
             eval_dataloader,
@@ -2415,7 +2414,6 @@ class Trainer:
                                              self.eval_dataset.num_prompts, self.eval_dataset.gold_labels,
                                              self.additional_metrics,
                                              fout_name=self.args.output_dir)
-                import pdb; pdb.set_trace()
             return EvalLoopOutput(predictions=preds, label_ids=None, metrics=None, num_samples=1)
         elif self.compute_metrics is not None and all_preds is not None and all_labels is not None:
             metrics = self.compute_metrics(EvalPrediction(predictions=all_preds, label_ids=all_labels))
