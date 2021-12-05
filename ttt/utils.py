@@ -10,7 +10,7 @@ def index_median(array):
     return h
 
 
-def write_results_to_file(fout_name, all_prompt_metrics, all_prompt_predictions, avg_ensemble_metrics, avg_ensemble_preds, golds, avg_entropy=None):
+def write_results_to_file(fout_name, suffix, all_prompt_metrics, all_prompt_predictions, avg_ensemble_metrics, avg_ensemble_preds, golds, avg_entropy=None):
     results = {}
     for k, v in all_prompt_metrics[0].items():
         all_metrics = [pptm[k] * 100 for pptm in all_prompt_metrics]
@@ -23,10 +23,10 @@ def write_results_to_file(fout_name, all_prompt_metrics, all_prompt_predictions,
         results["std_" + k] = round(np.std(all_metrics), 2)
         results["ensemble_" + k] = round(avg_ensemble_metrics[k]*100, 2)
         if fout_name.startswith("results"):
-            fout_name = fout_name + ".{}".format(k)
+            nfout = fout_name + f".{k}_{suffix}"
         else:
-            fout_name = os.path.join(fout_name, k)
-        with open(fout_name, "w") as fout:
+            nfout = os.path.join(fout_name, f'{k}_{suffix}')
+        with open(nfout, "w") as fout:
             fout.write(",".join(["{}={}".format(kk, vv) for kk, vv in results.items()]) + "\n")
             if avg_entropy is not None:
                 fout.write("acc: " + " ".join([str(vv) for vv in all_metrics]) + "\n")
@@ -38,7 +38,15 @@ def write_results_to_file(fout_name, all_prompt_metrics, all_prompt_predictions,
                 fout.write(s + "\n")
     return results
 
-def compute_metrics(logprobs, num_examples, num_targets, num_prompts, golds=None, metrics=None, fout_name=None):
+
+def compute_metrics(logprobs,
+                    num_examples,
+                    num_targets,
+                    num_prompts,
+                    golds=None,
+                    metrics=None,
+                    fout_name=None,
+                    suffix=None):
     predictions = [[] for _ in range(num_prompts)]
     entropies = [[] for _ in range(num_prompts)]
     avg_ensemble_predictions = []
@@ -70,7 +78,8 @@ def compute_metrics(logprobs, num_examples, num_targets, num_prompts, golds=None
     ensemble_metrics = metrics.compute(predictions=avg_ensemble_predictions, references=golds)
     avg_entropy = [np.mean(ents) for ents in entropies]
 
-    results = write_results_to_file(fout_name, prompt_metrics, predictions, ensemble_metrics, avg_ensemble_predictions, golds, avg_entropy)
+    results = write_results_to_file(fout_name, suffix, prompt_metrics, predictions, ensemble_metrics, avg_ensemble_predictions, golds, avg_entropy)
+    print(results)
     return results
 
 

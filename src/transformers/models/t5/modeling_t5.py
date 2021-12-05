@@ -1688,6 +1688,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             >>> print(tokenizer.decode(outputs[0], skip_special_tokens=True))
             >>> # studies have shown that owning a dog is good for you.
         """
+        # import pdb; pdb.set_trace()
         use_cache = use_cache if use_cache is not None else self.config.use_cache
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
@@ -1788,6 +1789,8 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
                     loss = self._compute_entropy_loss(loss, labels)
                 elif getattr(self.config, 'loss_option', 'none') == 'consistency':
                     loss = self._compute_consistency_loss(lm_logits, labels)
+                elif getattr(self.config, 'loss_option', 'none') == 'token_level_entropy':
+                    loss = self._compute_token_level_entropy_loss(lm_logits, labels)
                 else:
                     raise ValueError("Unknown loss option: {}".format(getattr(self.config, 'loss_option', 'none')))
             else:
@@ -1838,7 +1841,10 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         # [b, m, length, vocab]
         lprobs_avg = torch.logsumexp(lprobs, dim=1) - np.log(random_n_prompts)
         # [b, 1, m, length, vocab]
-        lprobs_avg = lprobs_avg.detach().unsqueeze(1).expand(lprobs.size())
+        if self.config.detach_one_side:
+            lprobs_avg = lprobs_avg.detach().unsqueeze(1).expand(lprobs.size())
+        else:
+            lprobs_avg = lprobs_avg.unsqueeze(1).expand(lprobs.size())
 
         total_tokens = target_mask.sum().float()
         loss = F.kl_div(lprobs, lprobs_avg, reduction='sum', log_target=True) / total_tokens
@@ -1876,6 +1882,33 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         # fixme
         # print(
         #     "rank = {}, loss= {}".format(torch.distributed.get_rank(), loss))
+        return loss
+
+    def _compute_token_level_entropy_loss(self, lm_logits, labels):
+        # [batch, length]
+        target_mask = (labels != -100)
+        # target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
+        # [batch, length, vocab]
+        lm_logits = lm_logits * target_mask.unsqueeze(2)
+
+        num_targets = self.config.num_choices
+        bsz, length, vsz = lm_logits.size()
+        assert bsz % num_targets == 0
+        # [batch, length, vocab] -> [b, m, length, vocab]
+        lprobs = F.log_softmax(lm_logits, dim=-1).view(-1, num_targets, length, vsz)
+        bsz = lprobs.size(0)
+        random_n_prompts = self.config.train_random_n_prompts if getattr(self.config, 'train_random_n_prompts', '-1') > 0 else bsz
+        assert bsz % random_n_prompts == 0
+        # [b, n, m, length, vocab]
+        lprobs = lprobs.view(-1, random_n_prompts, num_targets, length, vsz)
+        bsz = lprobs.size(0)
+        # [b, m, length, vocab]
+        lprobs_avg = torch.logsumexp(lprobs, dim=1) - np.log(random_n_prompts)
+        # [b, m, length]
+        loss = -(lprobs_avg.exp() * lprobs_avg).sum()
+
+        total_tokens = target_mask.sum().float()
+        loss = loss / total_tokens
         return loss
 
     def prepare_inputs_for_generation(

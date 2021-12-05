@@ -1013,6 +1013,24 @@ class Trainer:
 
         return model
 
+    def reset_parameter_efficient_modules(self):
+        with torch.no_grad():
+            for n, p in self.model.named_parameters():
+                if self.args.peft_option == 'prompt_tuning' and "ef_" in n:
+                    p.data.normal_(mean=0.0, std=0.02)
+                    p.requires_grad = True
+                elif self.args.peft_option == 'lora' and "ef_" in n:
+                    if "ef_lora_A" in n:
+                        nn.init.kaiming_uniform_(p, a=math.sqrt(5))
+                    elif "ef_lora_B" in n:
+                        nn.init.zeros_(p)
+                    p.requires_grad = True
+                elif self.args.peft_option == 'bitfit' and "bias" in n:
+                    # todo: how to recover original bias params?
+                    pass
+                else:
+                    p.requires_grad = False
+
     def train(
         self,
         resume_from_checkpoint: Optional[Union[str, bool]] = None,
@@ -1171,32 +1189,14 @@ class Trainer:
             self.lr_scheduler = lr_scheduler
         elif args.deepspeed and self.deepspeed and not reinit_model and getattr(self.args, 'test_mode', 'none') == 'ttt_t0':
             # init trainer
-            with torch.no_grad():
-                for n, p in self.model.named_parameters():
-                    if self.args.peft_option in ['lora', 'prompt_tuning'] and "ef_" in n:
-                        p.data.normal_(mean=0.0, std=0.02)
-                        p.requires_grad = True
-                    elif self.args.peft_option == 'bitfit' and "bias" in n:
-                        # todo: how to recover original bias params?
-                        pass
-                    else:
-                        p.requires_grad = False
+            self.reset_parameter_efficient_modules()
             # reinit optimizer states and lr scheduler
             self.model_wrapped.optimizer.state = defaultdict(dict)
             self.model_wrapped._configure_lr_scheduler(None)
         elif not delay_optimizer_creation:
             if getattr(self.args, 'test_mode', 'none') == 'ttt_t0' and not reinit_model:
                 # init trainer
-                with torch.no_grad():
-                    for n, p in self.model.named_parameters():
-                        if self.args.peft_option in ['lora', 'prompt_tuning'] and "ef_" in n:
-                            p.data.normal_(mean=0.0, std=0.02)
-                            p.requires_grad = True
-                        elif self.args.peft_option == 'bitfit' and "bias" in n:
-                            # todo: how to recover original bias params?
-                            pass
-                        else:
-                            p.requires_grad = False
+                self.reset_parameter_efficient_modules()
                 self.optimizer, self.lr_scheduler = None, None
             self.create_optimizer_and_scheduler(num_training_steps=max_steps)
 
@@ -2413,7 +2413,8 @@ class Trainer:
                 preds = self.compute_metrics(all_losses, eval_datasize, self.eval_dataset.num_choices,
                                              self.eval_dataset.num_prompts, self.eval_dataset.gold_labels,
                                              self.additional_metrics,
-                                             fout_name=self.args.output_dir)
+                                             fout_name=self.args.output_dir,
+                                             suffix=f'{self.state.global_step}')
             return EvalLoopOutput(predictions=preds, label_ids=None, metrics=None, num_samples=1)
         elif self.compute_metrics is not None and all_preds is not None and all_labels is not None:
             metrics = self.compute_metrics(EvalPrediction(predictions=all_preds, label_ids=all_labels))

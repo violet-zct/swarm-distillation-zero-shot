@@ -117,7 +117,12 @@ class TestArguments:
     loss_option: Optional[str] = field(
         default="entropy",
         metadata={"help": "loss type for test mode",
-                  "choices": ["consistency", "entropy"]}
+                  "choices": ["consistency", "entropy", "token_level_entropy"]}
+    )
+
+    # options for consistency loss
+    detach_one_side: Optional[int] = field(
+        default=1,
     )
 
     combine_option: Optional[str] = field(
@@ -152,4 +157,9 @@ class TestArguments:
         metadata={
             "help": ""
         },
+    )
+
+    prune_prompt: Optional[str] = field(
+        default=None,
+        metadata={"help": "format is xx:yy, xx is the option, yy is the hyperparameter"}
     )

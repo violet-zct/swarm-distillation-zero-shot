@@ -144,6 +144,8 @@ def main():
         pad_to_multiple_of=8 if training_args.fp16 else None,
     )
     test_data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer)
+    if test_args.train_random_n_prompts <= 0:
+        test_args.train_random_n_prompts = test_data.num_prompts
 
     config.num_choices = test_data.num_choices
     if test_args.metric_name == "none":
@@ -221,6 +223,9 @@ def main():
             logger.info("{} = {}".format(k, v))
     else:
         model = _model_init()
+        print(f'there are {test_data.num_prompts} prompts in total')
+        print(f'using {test_args.train_random_n_prompts} prompts  during training')
+
         if test_args.train_data_source == 'train':
             train_set = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, split='train')
             train_data = TTTOfflineDataset(train_set, test_args, test_args.train_random_n_prompts)
