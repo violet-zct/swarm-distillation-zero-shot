@@ -48,7 +48,7 @@ lora_pos="encdec"
 
 lr=3e-5
 lr_scheduler_type="polynomial"
-max_steps=1000
+max_steps=2000
 max_epochs=50
 log_steps=20
 debugsize=-1

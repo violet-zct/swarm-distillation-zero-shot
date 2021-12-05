@@ -203,7 +203,7 @@ def main():
         test_size = len(test_data) if test_args.debug_size < 0 else test_args.debug_size
         for i in range(test_size):
             # create dataset for one example
-            test_dataset = TTTDataset(test_data, test_args, test_args.train_random_n_prompts, idx=i)
+            test_dataset = TTTDataset(test_data, test_args, idx=i)
             trainer.train_dataset = test_dataset
             trainer.eval_dataset = test_dataset
 

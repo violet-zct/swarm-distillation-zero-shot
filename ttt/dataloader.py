@@ -83,7 +83,7 @@ class DatasetByPrompt(Dataset):
 
 
 class TTTDataset(Dataset):
-    def __init__(self, test_dataset, test_args, random_n_prompts, idx=-1):
+    def __init__(self, test_dataset, test_args, idx=-1):
         super().__init__()
         train_data_form = test_args.train_data_source
         assert train_data_form == 'stream'
@@ -92,17 +92,10 @@ class TTTDataset(Dataset):
 
         self.num_choices = test_dataset.num_choices
         self.num_prompts = test_dataset.num_prompts
-        self.random_n_prompts = random_n_prompts
         self.original_task_prompts = test_dataset.original_task_prompts
 
     def __getitem__(self, idx):
-        # return self.dataset[idx * self.num_choices: (idx+1) * self.num_choices]
-        random_prompts = np.random.choice(self.num_prompts, self.random_n_prompts, replace=False)
-        results = []
-        # s = idx * self.tot_single_ds_size
-        for rp in random_prompts:
-            results.extend(self.dataset[rp*self.num_choices : (rp+1)*self.num_choices])
-        return results
+        return self.dataset[idx * self.num_choices: (idx+1) * self.num_choices]
 
     def __len__(self):
         return self.num_prompts

@@ -2413,7 +2413,8 @@ class Trainer:
                 preds = self.compute_metrics(all_losses, eval_datasize, self.eval_dataset.num_choices,
                                              self.eval_dataset.num_prompts, self.eval_dataset.gold_labels,
                                              self.additional_metrics,
-                                             fout_name=self.args.output_dir)
+                                             fout_name=self.args.output_dir,
+                                             suffix=f'{self.state.global_step}')
             return EvalLoopOutput(predictions=preds, label_ids=None, metrics=None, num_samples=1)
         elif self.compute_metrics is not None and all_preds is not None and all_labels is not None:
             metrics = self.compute_metrics(EvalPrediction(predictions=all_preds, label_ids=all_labels))
