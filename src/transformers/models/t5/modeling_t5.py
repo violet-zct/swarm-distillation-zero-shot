@@ -1688,6 +1688,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             >>> print(tokenizer.decode(outputs[0], skip_special_tokens=True))
             >>> # studies have shown that owning a dog is good for you.
         """
+        import pdb; pdb.set_trace()
         use_cache = use_cache if use_cache is not None else self.config.use_cache
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
@@ -1832,6 +1833,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         # [batch, length, vocab] -> [b, m, length, vocab]
         lprobs = F.log_softmax(lm_logits, dim=-1).view(-1, num_targets, length, vsz)
         bsz = lprobs.size(0)
+        import pdb; pdb.set_trace()
         random_n_prompts = self.config.train_random_n_prompts if getattr(self.config, 'train_random_n_prompts', '-1') > 0 else bsz
         assert bsz % random_n_prompts == 0
         # [b, n, m, length, vocab]

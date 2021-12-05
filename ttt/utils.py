@@ -72,6 +72,7 @@ def compute_metrics(logprobs, num_examples, num_targets, num_prompts, golds=None
     avg_entropy = [np.mean(ents) for ents in entropies]
 
     results = write_results_to_file(fout_name, prompt_metrics, predictions, ensemble_metrics, avg_ensemble_predictions, golds, avg_entropy)
+    print(results)
     return results
 
 
