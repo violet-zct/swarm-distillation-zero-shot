@@ -122,6 +122,8 @@ def main():
         use_auth_token=True if model_args.use_auth_token else None,
     )
 
+    if test_args.train_data_source == 'stream':
+        training_args.per_gpu_train_batch_size = test_args.train_random_n_prompts
     # set additional args
     for k, v in vars(test_args).items():
         if not hasattr(config, k):
