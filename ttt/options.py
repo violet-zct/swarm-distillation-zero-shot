@@ -158,3 +158,8 @@ class TestArguments:
             "help": ""
         },
     )
+
+    prune_prompt: Optional[str] = field(
+        default=None,
+        metadata={"help": "format is xx:yy, xx is the option, yy is the hyperparameter"}
+    )
