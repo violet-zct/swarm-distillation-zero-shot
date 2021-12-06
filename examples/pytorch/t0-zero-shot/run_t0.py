@@ -125,6 +125,7 @@ def main():
 
     if test_args.train_data_source == 'stream':
         training_args.per_gpu_train_batch_size = test_args.train_random_n_prompts
+
     # set additional args
     for k, v in vars(test_args).items():
         if not hasattr(config, k):
@@ -146,7 +147,6 @@ def main():
     test_data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer)
     if test_args.train_random_n_prompts <= 0:
         test_args.train_random_n_prompts = test_data.num_prompts
-
 
     config.num_choices = test_data.num_choices
     if test_args.metric_name == "none":

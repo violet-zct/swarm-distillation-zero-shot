@@ -1796,7 +1796,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             else:
                 loss = -loss.view(labels.size())  # log likelihood
                 target_mask = (labels != -100)
-                # target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
+                target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
                 loss = (loss * target_mask).sum(1)
 
             # outputs = torch.vstack(outputs)
