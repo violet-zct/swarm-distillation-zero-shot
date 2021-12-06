@@ -1909,8 +1909,6 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         # [batch, length]
         target_mask = (labels != -100)
         target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
-        # [batch, length, vocab]
-        lm_logits = lm_logits * target_mask.unsqueeze(2)
 
         bsz, length, vsz = lm_logits.size()
         # [batch, length, vocab]
@@ -1922,7 +1920,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         # [b, length, vocab]
         lprobs_avg = torch.logsumexp(lprobs, dim=1) - np.log(random_n_prompts)
         # [b, length]
-        loss = -(lprobs_avg.exp() * lprobs_avg).sum(-1).view(target_mask.size()) * target_mask  # todo
+        loss = -(lprobs_avg.exp() * lprobs_avg).sum(-1).view(target_mask.size()) * target_mask
 
         total_tokens = target_mask.sum().float()
         loss = loss.sum() / total_tokens
