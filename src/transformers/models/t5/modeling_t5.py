@@ -1820,7 +1820,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             encoder_attentions=encoder_outputs.attentions,
         )
 
-    def _compute_consistency_loss(self, lm_logits, labels):
+    def _compute_consistency_loss_deprecated(self, lm_logits, labels):
         # [batch, length]
         target_mask = (labels != -100)
         target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
@@ -1844,6 +1844,34 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         if self.config.detach_one_side:
             lprobs_avg = lprobs_avg.detach().unsqueeze(1).expand(lprobs.size())
         else:
+            lprobs_avg = lprobs_avg.unsqueeze(1).expand(lprobs.size())
+
+        total_tokens = target_mask.sum().float()
+        loss = F.kl_div(lprobs, lprobs_avg, reduction='sum', log_target=True) / total_tokens
+        return loss
+
+    def _compute_consistency_loss(self, lm_logits, labels):
+        # [batch, length]
+        target_mask = (labels != -100)
+        target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
+        # [batch, length, vocab]
+        lm_logits = lm_logits * target_mask.unsqueeze(2)
+
+        bsz, length, vsz = lm_logits.size()
+        # [batch, length, vocab]
+        lprobs = F.log_softmax(lm_logits, dim=-1)
+        random_n_prompts = self.config.train_random_n_prompts if getattr(self.config, 'train_random_n_prompts', '-1') > 0 else bsz
+        assert bsz % random_n_prompts == 0
+        # [b, n, length, vocab]
+        lprobs = lprobs.view(-1, random_n_prompts, length, vsz)
+        # [b, length, vocab]
+        lprobs_avg = torch.logsumexp(lprobs, dim=1) - np.log(random_n_prompts)
+
+        if self.config.detach_one_side:
+            # [b, 1, length, vocab]
+            lprobs_avg = lprobs_avg.detach().unsqueeze(1).expand(lprobs.size())
+        else:
+            # [b, 1, length, vocab]
             lprobs_avg = lprobs_avg.unsqueeze(1).expand(lprobs.size())
 
         total_tokens = target_mask.sum().float()
@@ -1884,20 +1912,16 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         # [batch, length, vocab]
         lm_logits = lm_logits * target_mask.unsqueeze(2)
 
-        num_targets = self.config.num_choices
         bsz, length, vsz = lm_logits.size()
-        assert bsz % num_targets == 0
-        # [batch, length, vocab] -> [b, m, length, vocab]
-        lprobs = F.log_softmax(lm_logits, dim=-1).view(-1, num_targets, length, vsz)
-        bsz = lprobs.size(0)
+        # [batch, length, vocab]
+        lprobs = F.log_softmax(lm_logits, dim=-1)
         random_n_prompts = self.config.train_random_n_prompts if getattr(self.config, 'train_random_n_prompts', '-1') > 0 else bsz
         assert bsz % random_n_prompts == 0
-        # [b, n, m, length, vocab]
-        lprobs = lprobs.view(-1, random_n_prompts, num_targets, length, vsz)
-        bsz = lprobs.size(0)
-        # [b, m, length, vocab]
+        # [b, n, length, vocab]
+        lprobs = lprobs.view(-1, random_n_prompts, length, vsz)
+        # [b, length, vocab]
         lprobs_avg = torch.logsumexp(lprobs, dim=1) - np.log(random_n_prompts)
-        # [b, m, length]
+        # [b, length]
         loss = -(lprobs_avg.exp() * lprobs_avg).sum(-1).view(target_mask.size()) * target_mask  # todo
 
         total_tokens = target_mask.sum().float()
