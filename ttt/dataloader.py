@@ -82,7 +82,7 @@ class DatasetByPrompt(Dataset):
         return [name for name in all_prompt_names if self.prompts[name].metadata.original_task]
 
 
-class TTTDataset(Dataset):
+class TTTOnlineDataset(Dataset):
     def __init__(self, test_dataset, test_args, idx=-1):
         super().__init__()
         train_data_form = test_args.train_data_source
@@ -140,6 +140,69 @@ class TTTOfflineDataset(Dataset):
 
     def __len__(self):
         return self.datasize
+
+
+class TTTOnlineTokenLossDataset(Dataset):
+    def __init__(self, test_dataset, test_args, idx=-1):
+        super().__init__()
+        train_data_form = test_args.train_data_source
+        assert train_data_form == 'stream'
+        assert idx >= 0
+        self.dataset, self.gold_label = test_dataset[idx]
+
+        self.num_choices = test_dataset.num_choices
+        self.num_prompts = test_dataset.num_prompts
+        self.original_task_prompts = test_dataset.original_task_prompts
+
+    def __getitem__(self, idx):
+        answer_id = np.random.randint(self.num_choices)
+        return self.dataset[idx * self.num_choices + answer_id]
+
+    def __len__(self):
+        return self.num_prompts
+
+    @property
+    def num_examples(self):
+        return self.num_prompts
+
+
+class TTTOfflineTokenLossDataset(Dataset):
+    def __init__(self, test_dataset, test_args, random_n_prompts):
+        super().__init__()
+        print("Building TTT training set: {}!".format(test_args.train_data_source))
+        train_data_form = test_args.train_data_source
+        assert train_data_form != 'stream'
+
+        self.random_n_prompts = random_n_prompts
+
+        self.dataset, self.gold_labels = self.construct_dataset(test_dataset)
+        self.datasize = len(test_dataset)
+
+        self.num_choices = test_dataset.num_choices
+        self.num_prompts = test_dataset.num_prompts
+        self.tot_single_ds_size = self.num_prompts * self.num_choices
+        self.original_task_prompts = test_dataset.original_task_prompts
+
+    def construct_dataset(self, dataset: DatasetByPrompt):
+        all_data = []
+        labels = []
+        for examples, label in dataset:
+            all_data.extend(examples)
+            labels.append(label)
+        return all_data, labels
+
+    def __getitem__(self, idx):
+        random_prompts = np.random.choice(self.num_prompts, self.random_n_prompts, replace=False)
+        results = []
+        item_idx = idx % self.datasize
+        ans_idx = idx // self.datasize
+        s = item_idx * self.tot_single_ds_size
+        for rp in random_prompts:
+            results.append(self.dataset[s+rp*self.num_choices+ans_idx])
+        return results
+
+    def __len__(self):
+        return self.datasize * self.num_choices
 
 
 class TTTEvalDataset(Dataset):

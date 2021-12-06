@@ -21,7 +21,8 @@ from transformers import (
 )
 from ttt.options import *
 from ttt.utils import compute_metrics, summarize_metrics
-from ttt.dataloader import DatasetByPrompt, TTTDataset, TTTOfflineDataset, TTTEvalDataset
+from ttt.dataloader import DatasetByPrompt, TTTOnlineDataset, TTTOfflineDataset, TTTEvalDataset, \
+    TTTOnlineTokenLossDataset, TTTOfflineTokenLossDataset
 import logging
 
 # reload the t0 model after each test point or reset the biases when using bitfit;
@@ -203,7 +204,12 @@ def main():
         test_size = len(test_data) if test_args.debug_size < 0 else test_args.debug_size
         for i in range(test_size):
             # create dataset for one example
-            test_dataset = TTTDataset(test_data, test_args, idx=i)
+            if test_args.loss_option == "entropy":
+                # loss computed over answer space and prompts
+                test_dataset = TTTOnlineDataset(test_data, test_args, idx=i)
+            else:
+                # loss computed at token level over prompts
+                test_dataset = TTTOnlineTokenLossDataset(test_data, test_args, idx=i)
             trainer.train_dataset = test_dataset
             trainer.eval_dataset = test_dataset
 
@@ -226,17 +232,18 @@ def main():
         print(f'there are {test_data.num_prompts} prompts in total')
         print(f'using {test_args.train_random_n_prompts} prompts  during training')
 
-        if test_args.train_data_source == 'train':
-            train_set = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, split='train')
-            train_data = TTTOfflineDataset(train_set, test_args, test_args.train_random_n_prompts)
+        data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, split='train') \
+            if test_args.train_data_source == 'train' else test_data
+        if test_args.loss_option == "entropy":
+            train_data = TTTOfflineDataset(data, test_args, test_args.train_random_n_prompts)
         else:
-            train_data = TTTOfflineDataset(test_data, test_args, test_args.train_random_n_prompts)
-        test_data = TTTEvalDataset(test_data)
+            train_data = TTTOfflineTokenLossDataset(data, test_args, test_args.train_random_n_prompts)
+        test_set = TTTEvalDataset(test_data)
 
         trainer = Trainer(
             model=model,
             train_dataset=train_data,
-            eval_dataset=test_data,
+            eval_dataset=test_set,
             args=training_args,
             tokenizer=tokenizer,
             data_collator=data_collator,
