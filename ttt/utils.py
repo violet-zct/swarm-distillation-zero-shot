@@ -102,5 +102,5 @@ def summarize_metrics(predictions, avg_ensemble_predictions, golds, metrics, fou
         results["ensemble_avg" + k] = round(v * 100, 2)
 
     if fout_name is not None:
-        _ = write_results_to_file(fout_name, prompt_metrics, predictions, ensemble_metrics, avg_ensemble_predictions, golds)
+        _ = write_results_to_file(fout_name, "final", prompt_metrics, predictions, ensemble_metrics, avg_ensemble_predictions, golds)
     return results
