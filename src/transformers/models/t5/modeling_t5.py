@@ -1876,7 +1876,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
 
         total_tokens = target_mask.sum().float()
 
-        if self.config.consistency_reverse_kl:
+        if self.config.jsd:
             loss = F.kl_div(lprobs_avg, lprobs, reduction='sum', log_target=True) / total_tokens
         else:
             loss = F.kl_div(lprobs, lprobs_avg, reduction='sum', log_target=True) / total_tokens

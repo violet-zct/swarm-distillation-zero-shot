@@ -120,7 +120,7 @@ class TestArguments:
                   "choices": ["consistency", "entropy", "token_level_entropy"]}
     )
 
-    consistency_reverse_kl: Optional[int] = field(
+    jsd: Optional[int] = field(
         default=0,
     )
 
