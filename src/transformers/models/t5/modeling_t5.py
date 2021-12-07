@@ -1869,7 +1869,10 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
 
         if self.config.detach_one_side:
             # [b, 1, length, vocab]
-            lprobs_avg = lprobs_avg.detach().unsqueeze(1).expand(lprobs.size())
+            if self.config.jsd:
+                lprobs = lprobs.detach()
+            else:
+                lprobs_avg = lprobs_avg.detach().unsqueeze(1).expand(lprobs.size())
         else:
             # [b, 1, length, vocab]
             lprobs_avg = lprobs_avg.unsqueeze(1).expand(lprobs.size())
