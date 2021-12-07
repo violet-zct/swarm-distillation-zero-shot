@@ -120,13 +120,17 @@ class TestArguments:
                   "choices": ["consistency", "entropy", "token_level_entropy"]}
     )
 
+    # options for consistency loss
     jsd: Optional[int] = field(
+        default=1,
+    )
+
+    detach_kl_left: Optional[int] = field(
         default=0,
     )
 
-    # options for consistency loss
-    detach_one_side: Optional[int] = field(
-        default=1,
+    detach_kl_right: Optional[int] = field(
+        default=0,
     )
 
     combine_option: Optional[str] = field(
