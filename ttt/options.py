@@ -120,6 +120,10 @@ class TestArguments:
                   "choices": ["consistency", "entropy", "token_level_entropy"]}
     )
 
+    consistency_reverse_kl: Optional[int] = field(
+        default=0,
+    )
+
     # options for consistency loss
     detach_one_side: Optional[int] = field(
         default=1,

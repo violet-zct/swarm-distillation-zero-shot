@@ -1875,7 +1875,11 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             lprobs_avg = lprobs_avg.unsqueeze(1).expand(lprobs.size())
 
         total_tokens = target_mask.sum().float()
-        loss = F.kl_div(lprobs, lprobs_avg, reduction='sum', log_target=True) / total_tokens
+
+        if self.config.consistency_reverse_kl:
+            loss = F.kl_div(lprobs_avg, lprobs, reduction='sum', log_target=True) / total_tokens
+        else:
+            loss = F.kl_div(lprobs, lprobs_avg, reduction='sum', log_target=True) / total_tokens
         return loss
 
     def _compute_entropy_loss(self, loss, labels):
