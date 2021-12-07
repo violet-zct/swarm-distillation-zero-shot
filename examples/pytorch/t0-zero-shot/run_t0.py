@@ -211,7 +211,7 @@ def main():
                 # loss computed at token level over prompts
                 test_dataset = TTTOnlineTokenLossDataset(test_data, test_args, idx=i)
             trainer.train_dataset = test_dataset
-            trainer.eval_dataset = test_dataset
+            trainer.eval_dataset = TTTOnlineDataset(test_data, test_args, idx=i)
 
             # run train
             trainer.train(resume_from_checkpoint=None, reinit_model=(i==0))
