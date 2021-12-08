@@ -1863,7 +1863,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         if self.config.jsd:
             # KL (Pi || M)
             if self.config.detach_kl_left:
-                lprobs = lprobs.clone().detach()
+                lprobs = lprobs.detach()
             if self.config.detach_kl_right:
                 lprobs_avg = lprobs_avg.detach()
 
@@ -1874,7 +1874,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             if self.config.detach_kl_left:
                 lprobs_avg = lprobs_avg.detach()
             if self.config.detach_kl_right:
-                lprobs = lprobs.clone().detach()
+                lprobs = lprobs.detach()
 
             lprobs_avg = lprobs_avg.unsqueeze(1).expand(bsz, random_n_prompts, length, vsz)
             loss = F.kl_div(lprobs, lprobs_avg, reduction='sum', log_target=True) / total_tokens
