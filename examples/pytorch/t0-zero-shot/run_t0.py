@@ -155,6 +155,8 @@ def main():
     else:
         metrics = datasets.load_metric(test_args.metric_name, cache_dir=model_args.cache_dir)
 
+    logger.info(f"Model parameters {config}")
+
     def _model_init():
         # very slow
         model = AutoModelForSeq2SeqLM.from_pretrained(
