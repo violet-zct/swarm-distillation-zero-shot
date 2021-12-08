@@ -109,7 +109,6 @@ def main():
         f"Process rank: {training_args.local_rank}, device: {training_args.device}, n_gpu: {training_args.n_gpu}"
         + f"distributed training: {bool(training_args.local_rank != -1)}, 16-bits training: {training_args.fp16}"
     )
-    logger.info(f"Training/evaluation parameters {training_args}")
     # Set seed before initializing model.
     set_seed(training_args.seed)
 
@@ -131,6 +130,8 @@ def main():
         if not hasattr(config, k):
             setattr(config, k, v)
             setattr(training_args, k, v)
+
+    logger.info(f"Training/evaluation parameters {training_args}")
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,

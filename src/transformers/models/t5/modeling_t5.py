@@ -1855,6 +1855,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         assert bsz % random_n_prompts == 0
         # [b, n, length, vocab]
         lprobs = lprobs.view(-1, random_n_prompts, length, vsz)
+        bsz = lprobs.size(0)
         # [b, length, vocab]
         lprobs_avg = torch.logsumexp(lprobs, dim=1) - np.log(random_n_prompts)
         total_tokens = target_mask.sum().float()
@@ -1866,7 +1867,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             if self.config.detach_kl_right:
                 lprobs_avg = lprobs_avg.detach()
 
-            lprobs_avg = lprobs_avg.unsqueeze(1).expand(lprobs.size())
+            lprobs_avg = lprobs_avg.unsqueeze(1).expand(bsz, random_n_prompts, length, vsz)
             loss = F.kl_div(lprobs_avg, lprobs, reduction='sum', log_target=True) / total_tokens
         else:
             # KL (M || Pi)
@@ -1875,7 +1876,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             if self.config.detach_kl_right:
                 lprobs = lprobs.clone().detach()
 
-            lprobs_avg = lprobs_avg.unsqueeze(1).expand(lprobs.size())
+            lprobs_avg = lprobs_avg.unsqueeze(1).expand(bsz, random_n_prompts, length, vsz)
             loss = F.kl_div(lprobs, lprobs_avg, reduction='sum', log_target=True) / total_tokens
         return loss
 
