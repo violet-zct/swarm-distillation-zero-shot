@@ -123,14 +123,23 @@ class TestArguments:
     # options for consistency loss
     jsd: Optional[int] = field(
         default=1,
+        metadata={
+            "help": "jsd"
+        },
     )
 
     detach_kl_left: Optional[int] = field(
         default=0,
+        metadata={
+            "help": "detach the left side of KL"
+        },
     )
 
     detach_kl_right: Optional[int] = field(
         default=0,
+        metadata={
+            "help": "detach the right side of KL"
+        },
     )
 
     combine_option: Optional[str] = field(
