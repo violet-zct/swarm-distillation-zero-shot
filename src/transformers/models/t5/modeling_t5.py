@@ -1594,6 +1594,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         # Model parallel
         self.model_parallel = False
         self.device_map = None
+        self.is_true_answer_state = False
 
     @add_start_docstrings(PARALLELIZE_DOCSTRING)
     def parallelize(self, device_map=None):
@@ -1870,7 +1871,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             lprobs_avg = lprobs_avg.unsqueeze(1).expand(bsz, random_n_prompts, length, vsz)
             loss = F.kl_div(lprobs_avg, lprobs, reduction='sum', log_target=True) / total_tokens
         else:
-            # KL (M || Pi)
+            # KL (M || Pi): reverse JSD
             if self.config.detach_kl_left:
                 lprobs_avg = lprobs_avg.detach()
             if self.config.detach_kl_right:

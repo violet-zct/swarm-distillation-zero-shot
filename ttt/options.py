@@ -94,7 +94,6 @@ class TestArguments:
         default=False,
     )
 
-
     debug_size: Optional[int] = field(
         default=-1,
         metadata={"help": ""},
@@ -117,7 +116,8 @@ class TestArguments:
     loss_option: Optional[str] = field(
         default="entropy",
         metadata={"help": "loss type for test mode",
-                  "choices": ["consistency", "entropy", "token_level_entropy"]}
+                  "choices": ["consistency", "entropy", "token_level_entropy",
+                              "pseudo_train", "consistency_pseudo_train"]}
     )
 
     # options for consistency loss
@@ -179,4 +179,9 @@ class TestArguments:
     prune_prompt: Optional[str] = field(
         default=None,
         metadata={"help": "format is xx:yy, xx is the option, yy is the hyperparameter"}
+    )
+
+    ensemble_option: Optional[str] = field(
+        default="avg_prob",
+        metadata={"choices": ["avg_prob", "marjority_vote"]}
     )

@@ -46,7 +46,8 @@ def compute_metrics(logprobs,
                     golds=None,
                     metrics=None,
                     fout_name=None,
-                    suffix=None):
+                    suffix=None,
+                    ensemble_option="avg_prob"):
     predictions = [[] for _ in range(num_prompts)]
     entropies = [[] for _ in range(num_prompts)]
     avg_ensemble_predictions = []
@@ -67,7 +68,12 @@ def compute_metrics(logprobs,
             avg_probs += normalized_probs
             predictions[pidx].append(pred_label)
         avg_probs = avg_probs / num_prompts
-        avg_ensemble_predictions.append(np.argmax(avg_probs))
+        if ensemble_option == "avg_prob":
+            avg_ensemble_predictions.append(np.argmax(avg_probs))
+        elif ensemble_option == "majority_vote":
+            all_preds = [ppt[-1] for ppt in predictions]
+            counts = [all_preds.count(ii) for ii in range(num_targets)]
+            avg_ensemble_predictions.append(np.argmax(counts))
 
     if num_examples == 1:
         return [ppt[0] for ppt in predictions], avg_ensemble_predictions[0]
