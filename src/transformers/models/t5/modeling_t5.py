@@ -407,6 +407,24 @@ class T5LayerFF(nn.Module):
         hidden_states = hidden_states + self.dropout(forwarded_states)
         return hidden_states
 
+    # added by Junxian to fix fp16 problem of t5
+    # from https://github.com/huggingface/transformers/blob/c4c95d18e07c4826770f12b6c428706950a8cebd/src/transformers/models/t5/modeling_t5.py
+    # def _forward(self, hidden_states):
+    #     forwarded_states = self.layer_norm(hidden_states)
+    #     forwarded_states = self.DenseReluDense(forwarded_states)
+    #     hidden_states = hidden_states + self.dropout(forwarded_states)
+    #     return hidden_states
+
+    # def forward(self, hidden_states):
+    #     # many t5/mt5 models are trained in bfloat16 and don't do well under mixed precision (fp16).
+    #     # It appears that it's enough to disable autocast for this FF layer to avoid inf/nan
+    #     # problems for the whole model
+    #     if torch.is_autocast_enabled():
+    #         with torch.cuda.amp.autocast(enabled=False):
+    #             return self._forward(hidden_states)
+    #     else:
+    #         return self._forward(hidden_states)
+
 
 class T5Attention(nn.Module):
     def __init__(self, config: T5Config, has_relative_attention_bias=False):
