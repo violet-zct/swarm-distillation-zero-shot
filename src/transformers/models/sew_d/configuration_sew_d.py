@@ -67,9 +67,9 @@ class SEWDConfig(PretrainedConfig):
             :obj:`("p2c")`, :obj:`("p2c", "c2p")`, :obj:`("p2c", "c2p", 'p2p")`.
         norm_rel_ebd (:obj:`str`, `optional`, defaults to :obj:`"layer_norm"`):
             Whether to use layer norm in relative embedding (:obj:`"layer_norm"` if yes)
-        hidden_act (:obj:`str` or :obj:`function`, `optional`, defaults to :obj:`"gelu"`):
+        hidden_act (:obj:`str` or :obj:`function`, `optional`, defaults to :obj:`"gelu_python"`):
             The non-linear activation function (function or string) in the encoder and pooler. If string,
-            :obj:`"gelu"`, :obj:`"relu"`, :obj:`"selu"` and :obj:`"gelu_new"` are supported.
+            :obj:`"gelu"`, :obj:`"relu"`, :obj:`"selu"`, :obj:`"gelu_python"` and :obj:`"gelu_new"` are supported.
         hidden_dropout (:obj:`float`, `optional`, defaults to 0.1):
             The dropout probability for all fully connected layers in the embeddings, encoder, and pooler.
         attention_dropout (:obj:`float`, `optional`, defaults to 0.1):
@@ -78,8 +78,10 @@ class SEWDConfig(PretrainedConfig):
             The dropout probability for the final projection layer of :class:`SEWDForCTC`.
         initializer_range (:obj:`float`, `optional`, defaults to 0.02):
             The standard deviation of the truncated_normal_initializer for initializing all weight matrices.
-        layer_norm_eps (:obj:`float`, `optional`, defaults to 1e-12):
-            The epsilon used by the layer normalization layers.
+        layer_norm_eps (:obj:`float`, `optional`, defaults to 1e-7):
+            The epsilon used by the layer normalization layers in the transformer encoder.
+        feature_layer_norm_eps (:obj:`float`, `optional`, defaults to 1e-5):
+            The epsilon used by the layer normalization after the feature extractor.
         feat_extract_norm (:obj:`str`, `optional`, defaults to :obj:`"group"`):
             The norm to be applied to 1D convolutional layers in feature extractor. One of :obj:`"group"` for group
             normalization of only the first 1D convolutional layer or :obj:`"layer"` for layer normalization of all 1D
@@ -111,17 +113,30 @@ class SEWDConfig(PretrainedConfig):
             `SpecAugment: A Simple Data Augmentation Method for Automatic Speech Recognition
             <https://arxiv.org/abs/1904.08779>`__.
         mask_time_prob (:obj:`float`, `optional`, defaults to 0.05):
-            Propability of each feature vector along the time axis to be chosen as the start of the vector span to be
-            masked. Approximately ``mask_time_prob * sequence_length // mask_time_length`` feature vectors will be
-            masked along the time axis. This is only relevant if ``apply_spec_augment is True``.
+            Percentage (between 0 and 1) of all feature vectors along the time axis which will be masked. The masking
+            procecure generates ''mask_time_prob*len(time_axis)/mask_time_length'' independent masks over the axis. If
+            reasoning from the propability of each feature vector to be chosen as the start of the vector span to be
+            masked, `mask_time_prob` should be ``prob_vector_start*mask_time_length``. Note that overlap may decrease
+            the actual percentage of masked vectors. This is only relevant if ``apply_spec_augment is True``.
         mask_time_length (:obj:`int`, `optional`, defaults to 10):
             Length of vector span along the time axis.
+        mask_time_min_masks (:obj:`int`, `optional`, defaults to 2),:
+            The minimum number of masks of length ``mask_feature_length`` generated along the time axis, each time
+            step, irrespectively of ``mask_feature_prob``. Only relevant if
+            ''mask_time_prob*len(time_axis)/mask_time_length < mask_time_min_masks''
         mask_feature_prob (:obj:`float`, `optional`, defaults to 0.0):
-            Propability of each feature vector along the feature axis to be chosen as the start of the vector span to
-            be masked. Approximately ``mask_time_prob * hidden_size // mask_time_length`` feature vectors will be
-            masked along the time axis. This is only relevant if ``apply_spec_augment is True``.
+            Percentage (between 0 and 1) of all feature vectors along the feature axis which will be masked. The
+            masking procecure generates ''mask_feature_prob*len(feature_axis)/mask_time_length'' independent masks over
+            the axis. If reasoning from the propability of each feature vector to be chosen as the start of the vector
+            span to be masked, `mask_feature_prob` should be ``prob_vector_start*mask_feature_length``. Note that
+            overlap may decrease the actual percentage of masked vectors. This is only relevant if ``apply_spec_augment
+            is True``.
         mask_feature_length (:obj:`int`, `optional`, defaults to 10):
             Length of vector span along the feature axis.
+        mask_feature_min_masks (:obj:`int`, `optional`, defaults to 0),:
+            The minimum number of masks of length ``mask_feature_length`` generated along the feature axis, each time
+            step, irrespectively of ``mask_feature_prob``. Only relevant if
+            ''mask_feature_prob*len(feature_axis)/mask_feature_length < mask_feature_min_masks''
         diversity_loss_weight (:obj:`int`, `optional`, defaults to 0.1):
             The weight of the codebook diversity loss component.
         ctc_loss_reduction (:obj:`str`, `optional`, defaults to :obj:`"sum"`):
@@ -167,7 +182,7 @@ class SEWDConfig(PretrainedConfig):
         position_biased_input=False,
         pos_att_type=("p2c", "c2p"),
         norm_rel_ebd="layer_norm",
-        hidden_act="gelu",
+        hidden_act="gelu_python",
         hidden_dropout=0.1,
         activation_dropout=0.1,
         attention_dropout=0.1,
@@ -175,7 +190,8 @@ class SEWDConfig(PretrainedConfig):
         final_dropout=0.1,
         layerdrop=0.1,
         initializer_range=0.02,
-        layer_norm_eps=1e-5,
+        layer_norm_eps=1e-7,
+        feature_layer_norm_eps=1e-5,
         feat_extract_norm="group",
         feat_extract_activation="gelu",
         conv_dim=(64, 128, 128, 128, 128, 256, 256, 256, 256, 512, 512, 512, 512),
@@ -187,9 +203,11 @@ class SEWDConfig(PretrainedConfig):
         apply_spec_augment=True,
         mask_time_prob=0.05,
         mask_time_length=10,
+        mask_time_min_masks=2,
         mask_feature_prob=0.0,
         mask_feature_length=10,
-        ctc_loss_reduction="sum",
+        mask_feature_min_masks=0,
+        ctc_loss_reduction="mean",
         ctc_zero_infinity=False,
         use_weighted_layer_sum=False,
         classifier_proj_size=256,
@@ -228,6 +246,7 @@ class SEWDConfig(PretrainedConfig):
         self.final_dropout = final_dropout
         self.layerdrop = layerdrop
         self.layer_norm_eps = layer_norm_eps
+        self.feature_layer_norm_eps = feature_layer_norm_eps
         self.initializer_range = initializer_range
         self.vocab_size = vocab_size
 
@@ -247,8 +266,10 @@ class SEWDConfig(PretrainedConfig):
         self.apply_spec_augment = apply_spec_augment
         self.mask_time_prob = mask_time_prob
         self.mask_time_length = mask_time_length
+        self.mask_time_min_masks = mask_time_min_masks
         self.mask_feature_prob = mask_feature_prob
         self.mask_feature_length = mask_feature_length
+        self.mask_feature_min_masks = mask_feature_min_masks
 
         # ctc loss
         self.ctc_loss_reduction = ctc_loss_reduction

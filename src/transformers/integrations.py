@@ -382,9 +382,10 @@ class TensorBoardCallback(TrainerCallback):
 
     def __init__(self, tb_writer=None):
         has_tensorboard = is_tensorboard_available()
-        assert (
-            has_tensorboard
-        ), "TensorBoardCallback requires tensorboard to be installed. Either update your PyTorch version or install tensorboardX."
+        if not has_tensorboard:
+            raise RuntimeError(
+                "TensorBoardCallback requires tensorboard to be installed. Either update your PyTorch version or install tensorboardX."
+            )
         if has_tensorboard:
             try:
                 from torch.utils.tensorboard import SummaryWriter  # noqa: F401
@@ -465,7 +466,8 @@ class WandbCallback(TrainerCallback):
 
     def __init__(self):
         has_wandb = is_wandb_available()
-        assert has_wandb, "WandbCallback requires wandb to be installed. Run `pip install wandb`."
+        if not has_wandb:
+            raise RuntimeError("WandbCallback requires wandb to be installed. Run `pip install wandb`.")
         if has_wandb:
             import wandb
 
@@ -587,8 +589,10 @@ class CometCallback(TrainerCallback):
     """
 
     def __init__(self):
-        assert _has_comet, "CometCallback requires comet-ml to be installed. Run `pip install comet-ml`."
+        if not _has_comet:
+            raise RuntimeError("CometCallback requires comet-ml to be installed. Run `pip install comet-ml`.")
         self._initialized = False
+        self._log_assets = False
 
     def setup(self, args, state, model):
         """
@@ -596,26 +600,35 @@ class CometCallback(TrainerCallback):
 
         Environment:
             COMET_MODE (:obj:`str`, `optional`):
-                "OFFLINE", "ONLINE", or "DISABLED"
+                Whether to create an online, offline experiment or disable Comet logging. Can be "OFFLINE", "ONLINE",
+                or "DISABLED". Defaults to "ONLINE".
             COMET_PROJECT_NAME (:obj:`str`, `optional`):
-                Comet.ml project name for experiments
+                Comet project name for experiments
             COMET_OFFLINE_DIRECTORY (:obj:`str`, `optional`):
                 Folder to use for saving offline experiments when :obj:`COMET_MODE` is "OFFLINE"
+            COMET_LOG_ASSETS (:obj:`str`, `optional`):
+                Whether or not to log training assets (tf event logs, checkpoints, etc), to Comet. Can be "TRUE", or
+                "FALSE". Defaults to "TRUE".
 
         For a number of configurable items in the environment, see `here
         <https://www.comet.ml/docs/python-sdk/advanced/#comet-configuration-variables>`__.
         """
         self._initialized = True
+        log_assets = os.getenv("COMET_LOG_ASSETS", "FALSE").upper()
+        if log_assets in {"TRUE", "1"}:
+            self._log_assets = True
         if state.is_world_process_zero:
             comet_mode = os.getenv("COMET_MODE", "ONLINE").upper()
-            args = {"project_name": os.getenv("COMET_PROJECT_NAME", "huggingface")}
             experiment = None
+            experiment_kwargs = {"project_name": os.getenv("COMET_PROJECT_NAME", "huggingface")}
             if comet_mode == "ONLINE":
-                experiment = comet_ml.Experiment(**args)
+                experiment = comet_ml.Experiment(**experiment_kwargs)
+                experiment.log_other("Created from", "transformers")
                 logger.info("Automatic Comet.ml online logging enabled")
             elif comet_mode == "OFFLINE":
-                args["offline_directory"] = os.getenv("COMET_OFFLINE_DIRECTORY", "./")
-                experiment = comet_ml.OfflineExperiment(**args)
+                experiment_kwargs["offline_directory"] = os.getenv("COMET_OFFLINE_DIRECTORY", "./")
+                experiment = comet_ml.OfflineExperiment(**experiment_kwargs)
+                experiment.log_other("Created from", "transformers")
                 logger.info("Automatic Comet.ml offline logging enabled; use `comet upload` when finished")
             if experiment is not None:
                 experiment._set_model_graph(model, framework="transformers")
@@ -635,6 +648,16 @@ class CometCallback(TrainerCallback):
             if experiment is not None:
                 experiment._log_metrics(logs, step=state.global_step, epoch=state.epoch, framework="transformers")
 
+    def on_train_end(self, args, state, control, **kwargs):
+        if self._initialized and state.is_world_process_zero:
+            experiment = comet_ml.config.get_global_experiment()
+            if (experiment is not None) and (self._log_assets is True):
+                logger.info("Logging checkpoints. This may take time.")
+                experiment.log_asset_folder(
+                    args.output_dir, recursive=True, log_file_name=True, step=state.global_step
+                )
+            experiment.end()
+
 
 class AzureMLCallback(TrainerCallback):
     """
@@ -643,9 +666,8 @@ class AzureMLCallback(TrainerCallback):
     """
 
     def __init__(self, azureml_run=None):
-        assert (
-            is_azureml_available()
-        ), "AzureMLCallback requires azureml to be installed. Run `pip install azureml-sdk`."
+        if not is_azureml_available():
+            raise RuntimeError("AzureMLCallback requires azureml to be installed. Run `pip install azureml-sdk`.")
         self.azureml_run = azureml_run
 
     def on_init_end(self, args, state, control, **kwargs):
@@ -667,7 +689,8 @@ class MLflowCallback(TrainerCallback):
     """
 
     def __init__(self):
-        assert is_mlflow_available(), "MLflowCallback requires mlflow to be installed. Run `pip install mlflow`."
+        if not is_mlflow_available():
+            raise RuntimeError("MLflowCallback requires mlflow to be installed. Run `pip install mlflow`.")
         import mlflow
 
         self._MAX_PARAM_VAL_LENGTH = mlflow.utils.validation.MAX_PARAM_VAL_LENGTH
@@ -723,9 +746,10 @@ class MLflowCallback(TrainerCallback):
         if not self._initialized:
             self.setup(args, state, model)
         if state.is_world_process_zero:
+            metrics = {}
             for k, v in logs.items():
                 if isinstance(v, (int, float)):
-                    self._ml_flow.log_metric(k, v, step=state.global_step)
+                    metrics[k] = v
                 else:
                     logger.warning(
                         f"Trainer is attempting to log a value of "
@@ -733,6 +757,7 @@ class MLflowCallback(TrainerCallback):
                         f"MLflow's log_metric() only accepts float and "
                         f"int types so we dropped this attribute."
                     )
+            self._ml_flow.log_metrics(metrics=metrics, step=state.global_step)
 
     def on_train_end(self, args, state, control, **kwargs):
         if self._initialized and state.is_world_process_zero:
@@ -753,9 +778,10 @@ class NeptuneCallback(TrainerCallback):
     """
 
     def __init__(self):
-        assert (
-            is_neptune_available()
-        ), "NeptuneCallback requires neptune-client to be installed. Run `pip install neptune-client`."
+        if not is_neptune_available():
+            raise ValueError(
+                "NeptuneCallback requires neptune-client to be installed. Run `pip install neptune-client`."
+            )
         import neptune.new as neptune
 
         self._neptune = neptune
@@ -823,9 +849,10 @@ class CodeCarbonCallback(TrainerCallback):
     """
 
     def __init__(self):
-        assert (
-            is_codecarbon_available()
-        ), "CodeCarbonCallback requires `codecarbon` to be installed. Run `pip install codecarbon`."
+        if not is_codecarbon_available():
+            raise RuntimeError(
+                "CodeCarbonCallback requires `codecarbon` to be installed. Run `pip install codecarbon`."
+            )
         import codecarbon
 
         self._codecarbon = codecarbon
