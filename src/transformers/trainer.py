@@ -1819,9 +1819,15 @@ class Trainer:
 
                     assert ens_pred != -1
                     is_ensemble_answer = ((inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices == ens_pred)
-                    if self.args.loss_option == "consistency_pseudo_train" and not is_ensemble_answer:
+                    if self.args.loss_option == "consistency_pseudo_train" and not is_ensemble_answer and inputs["input_ids"].size(0) == 1:
+                        # bsz = 1, not is_true_answer: skip
+                        continue
+                    elif self.args.loss_option == "pseudo_train" and not is_ensemble_answer:
                         continue
                     else:
+                        # bsz > 1, is_true_answer: loss 1 + loss 2
+                        # bsz > 1, not is_true_answer: loss 1
+                        # bsz = 1, is_true_answer: loss 2
                         model.is_true_answer_state = is_ensemble_answer
 
                     if (
