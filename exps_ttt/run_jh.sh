@@ -67,7 +67,8 @@ test_mode="ttt_t0"
 train_data="validation"  # test, stream
 # train_data="train"  # test, stream
 # train_data="stream"
-model="T0_3B"
+# model="T0_3B"
+model="T0pp"
 
 exp_name=${test_mode}.train.source.${train_data}.${dataset}.${subset}.${testset_name}.${model}.np${nprompts}.peft.${peft}.bn${pL}.lora_pos.${lora_pos}.lopt.${loss_opt}.ga${gradient_acc}.combine.${copt}.temp.${temp}.lr.${lr}.warm.${warmup}
 SAVE=checkpoints/jh/${dataset}/${subset}/${DATE}/${exp_name}
@@ -99,6 +100,6 @@ deepspeed examples/pytorch/t0-zero-shot/run_t0.py \
   --evaluation_strategy "steps" --eval_steps ${eval_steps} \
   --lr_scheduler_type ${lr_scheduler_type} \
   --output_dir ${SAVE} --overwrite_output_dir --report_to "none" \
-  --fp16 \
+  --bf16 \
   --disable_tqdm "True" 2>&1 | tee ${SAVE}/log.txt
 

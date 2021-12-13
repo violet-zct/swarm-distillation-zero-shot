@@ -1,10 +1,10 @@
 {
   "bfloat16": {
-    "enabled": false
+    "enabled": true
   },
 
   "fp16": {
-    "enabled": true,
+    "enabled": false,
     "loss_scale": 0,
     "initial_scale_power": 16,
     "loss_scale_window": 1000,
