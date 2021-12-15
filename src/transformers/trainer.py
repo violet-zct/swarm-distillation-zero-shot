@@ -1804,21 +1804,24 @@ class Trainer:
                 ens_pred = -1
                 model = self._wrap_model(self.model, training=False)
                 self.is_in_train = False
+                all_logprobs = []
                 for inner_step, inputs in enumerate(list_of_inputs):
                     if inner_step < self.train_dataset.dev_size:
                         model.eval()
                         logprobs, _, _ = self.prediction_step(model, inputs, prediction_loss_only=True)
-                        _, avg_ens_pred, vote_ens_pred = self.compute_metrics(logprobs, 1, self.train_dataset.num_choices,
-                                                                              self.train_dataset.num_prompts)
-
-                        if self.args.ensemble_option == "avg_prob":
-                            ens_pred = avg_ens_pred
-                        elif self.args.ensemble_option == "marjority_vote":
-                            ens_pred = vote_ens_pred
-                        else:
-                            raise ValueError("unknown ensemble: {}".format(self.args.ensemble_option))
-
+                        all_logprobs.extend(logprobs.cpu().numpy())
                         if inner_step == self.train_dataset.dev_size - 1:
+                            _, avg_ens_pred, vote_ens_pred = self.compute_metrics(all_logprobs, 1,
+                                                                                  self.train_dataset.num_choices,
+                                                                                  self.train_dataset.num_prompts)
+
+                            if self.args.ensemble_option == "avg_prob":
+                                ens_pred = avg_ens_pred
+                            elif self.args.ensemble_option == "marjority_vote":
+                                ens_pred = vote_ens_pred
+                            else:
+                                raise ValueError("unknown ensemble: {}".format(self.args.ensemble_option))
+
                             model = self._wrap_model(self.model)
                             self.is_in_train = True
                         continue
