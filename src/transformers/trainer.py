@@ -1805,33 +1805,36 @@ class Trainer:
                 model = self._wrap_model(self.model, training=False)
                 self.is_in_train = False
                 all_logprobs = []
+                total_inner_steps = len(list_of_inputs) - self.train_dataset.dev_size
+
                 for inner_step, inputs in enumerate(list_of_inputs):
                     if inner_step < self.train_dataset.dev_size:
                         model.eval()
                         logprobs, _, _ = self.prediction_step(model, inputs, prediction_loss_only=True)
                         all_logprobs.extend(logprobs.cpu().numpy())
-                        if inner_step == self.train_dataset.dev_size - 1:
-                            _, avg_ens_pred, vote_ens_pred = self.compute_metrics(all_logprobs, 1,
-                                                                                  self.train_dataset.num_choices,
-                                                                                  self.train_dataset.num_prompts)
-
-                            if self.args.ensemble_option == "avg_prob":
-                                ens_pred = avg_ens_pred
-                            elif self.args.ensemble_option == "marjority_vote":
-                                ens_pred = vote_ens_pred
-                            else:
-                                raise ValueError("unknown ensemble: {}".format(self.args.ensemble_option))
-
-                            model = self._wrap_model(self.model)
-                            self.is_in_train = True
                         continue
+
+                    if inner_step == self.train_dataset.dev_size:
+                        _, avg_ens_pred, vote_ens_pred = self.compute_metrics(all_logprobs, 1,
+                                                                              self.train_dataset.num_choices,
+                                                                              self.train_dataset.num_prompts)
+
+                        if self.args.ensemble_option == "avg_prob":
+                            ens_pred = avg_ens_pred
+                        elif self.args.ensemble_option == "marjority_vote":
+                            ens_pred = vote_ens_pred
+                        else:
+                            raise ValueError("unknown ensemble: {}".format(self.args.ensemble_option))
+
+                        model = self._wrap_model(self.model)
+                        self.is_in_train = True
 
                     assert ens_pred != -1
                     is_ensemble_answer = ((inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices == ens_pred)
-                    if self.args.loss_option == "consistency_pseudo_train" and not is_ensemble_answer and inputs["input_ids"].size(0) == 1:
+                    is_ensemble_answer = is_ensemble_answer and self.args.loss_option in ["consistency_pseudo_train", "pseudo_train"]
+
+                    if not is_ensemble_answer and inputs["input_ids"].size(0) == 1:
                         # bsz = 1, not is_true_answer: skip
-                        continue
-                    elif self.args.loss_option == "pseudo_train" and not is_ensemble_answer:
                         continue
                     else:
                         # bsz > 1, is_true_answer: loss 1 + loss 2
@@ -1846,9 +1849,9 @@ class Trainer:
                     ):
                         # Avoid unnecessary DDP synchronization since there will be no backward pass on this example.
                         with model.no_sync():
-                            tr_loss_step = self.training_step(model, inputs)
+                            tr_loss_step = self.training_step(model, inputs, inner_steps=total_inner_steps)
                     else:
-                        tr_loss_step = self.training_step(model, inputs)
+                        tr_loss_step = self.training_step(model, inputs, inner_steps=total_inner_steps)
 
                     if (
                             args.logging_nan_inf_filter
@@ -2351,7 +2354,7 @@ class Trainer:
 
         return inputs
 
-    def training_step(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> torch.Tensor:
+    def training_step(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]], inner_steps=None) -> torch.Tensor:
         """
         Perform a training step on a batch of inputs.
 
@@ -2385,6 +2388,9 @@ class Trainer:
 
         if self.args.n_gpu > 1:
             loss = loss.mean()  # mean() to average on multi-gpu parallel training
+
+        if inner_steps is not None:
+            loss = loss / inner_steps
 
         if self.args.gradient_accumulation_steps > 1 and not self.deepspeed:
             # deepspeed handles loss scaling by gradient_accumulation_steps in its `backward`

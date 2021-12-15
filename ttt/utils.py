@@ -10,7 +10,10 @@ def index_median(array):
     return h
 
 
-def write_results_to_file(fout_name, suffix, all_prompt_metrics, all_prompt_predictions, avg_ensemble_metrics, avg_ensemble_preds, golds, avg_entropy=None):
+def write_results_to_file(fout_name, suffix, all_prompt_metrics, all_prompt_predictions,
+                          avg_ensemble_metrics, avg_ensemble_preds,
+                          vote_ensemble_metrics, vote_ensemble_preds,
+                          golds, avg_entropy=None):
     results = {}
     for k, v in all_prompt_metrics[0].items():
         all_metrics = [pptm[k] * 100 for pptm in all_prompt_metrics]
@@ -21,7 +24,8 @@ def write_results_to_file(fout_name, suffix, all_prompt_metrics, all_prompt_pred
         results["mean_" + k] = round(np.mean(all_metrics), 2)
         results["min_" + k] = round(np.min(all_metrics), 2)
         results["std_" + k] = round(np.std(all_metrics), 2)
-        results["ensemble_" + k] = round(avg_ensemble_metrics[k]*100, 2)
+        results["avg_ensemble_" + k] = round(avg_ensemble_metrics[k]*100, 2)
+        results["vote_ensemble_" + k] = round(vote_ensemble_metrics[k] * 100, 2)
         if fout_name.startswith("results"):
             nfout = fout_name + f".{k}_{suffix}"
         else:
@@ -33,7 +37,8 @@ def write_results_to_file(fout_name, suffix, all_prompt_metrics, all_prompt_pred
                 fout.write("ent: " + " ".join([str(vv) for vv in avg_entropy]) + "\n")
             # output predictions of prompts for each example
             for ii in range(len(all_prompt_predictions[0])):
-                s = ",".join(["gold={}".format(golds[ii]), "median={}".format(median_prompt[ii]), "max={}".format(max_prompt[ii]), "esemb={}".format(avg_ensemble_preds[ii])]) + ","
+                s = ",".join(["gold={}".format(golds[ii]), "median={}".format(median_prompt[ii]), "max={}".format(max_prompt[ii]),
+                              "avg_esemb={}".format(avg_ensemble_preds[ii]), "vote_esemb={}".format(vote_ensemble_preds[ii])]) + ","
                 s += " ".join([str(all_prompt_predictions[jj][ii]) for jj in range(len(all_prompt_predictions))])
                 fout.write(s + "\n")
     return results
@@ -46,11 +51,11 @@ def compute_metrics(logprobs,
                     golds=None,
                     metrics=None,
                     fout_name=None,
-                    suffix=None,
-                    ensemble_option="avg_prob"):
+                    suffix=None):
     predictions = [[] for _ in range(num_prompts)]
     entropies = [[] for _ in range(num_prompts)]
     avg_ensemble_predictions = []
+    vote_ensemble_predictions = []
     idx = 0
     for eidx in range(num_examples):
         avg_probs = np.zeros(num_targets)
@@ -67,33 +72,37 @@ def compute_metrics(logprobs,
             entropies[pidx].append(-(normalized_probs * np.log(normalized_probs)).sum())
             avg_probs += normalized_probs
             predictions[pidx].append(pred_label)
+
         avg_probs = avg_probs / num_prompts
-        if ensemble_option == "avg_prob":
-            avg_ensemble_predictions.append(np.argmax(avg_probs))
-        elif ensemble_option == "majority_vote":
-            all_preds = [ppt[-1] for ppt in predictions]
-            counts = [all_preds.count(ii) for ii in range(num_targets)]
-            avg_ensemble_predictions.append(np.argmax(counts))
+        avg_ensemble_predictions.append(np.argmax(avg_probs))
+
+        all_preds = [ppt[-1] for ppt in predictions]
+        counts = [all_preds.count(ii) for ii in range(num_targets)]
+        vote_ensemble_predictions.append(np.argmax(counts))
 
     if num_examples == 1:
-        return [ppt[0] for ppt in predictions], avg_ensemble_predictions[0]
+        return [ppt[0] for ppt in predictions], avg_ensemble_predictions[0], vote_ensemble_predictions[0]
 
     prompt_metrics = []
     for ppred in predictions:
         prompt_metrics.append(metrics.compute(predictions=ppred, references=golds))
-    ensemble_metrics = metrics.compute(predictions=avg_ensemble_predictions, references=golds)
+    avg_ensemble_metrics = metrics.compute(predictions=avg_ensemble_predictions, references=golds)
     avg_entropy = [np.mean(ents) for ents in entropies]
+    vote_ensemble_metrics = metrics.compute(predictions=vote_ensemble_predictions, references=golds)
 
-    results = write_results_to_file(fout_name, suffix, prompt_metrics, predictions, ensemble_metrics, avg_ensemble_predictions, golds, avg_entropy)
+    results = write_results_to_file(fout_name, suffix, prompt_metrics, predictions,
+                                    avg_ensemble_metrics, avg_ensemble_predictions,
+                                    vote_ensemble_metrics, vote_ensemble_predictions, golds, avg_entropy)
     print(results)
     return results
 
 
-def summarize_metrics(predictions, avg_ensemble_predictions, golds, metrics, fout_name=None):
+def summarize_metrics(predictions, avg_ensemble_predictions, vote_ensemble_predictions, golds, metrics, fout_name=None):
     prompt_metrics = []
     for ppred in predictions:
         prompt_metrics.append(metrics.compute(predictions=ppred, references=golds))
-    ensemble_metrics = metrics.compute(predictions=avg_ensemble_predictions, references=golds)
+    avg_ensemble_metrics = metrics.compute(predictions=avg_ensemble_predictions, references=golds)
+    vote_ensemble_metrics = metrics.compute(predictions=vote_ensemble_predictions, references=golds)
 
     results = {}
     for k, v in prompt_metrics[0].items():
@@ -104,9 +113,14 @@ def summarize_metrics(predictions, avg_ensemble_predictions, golds, metrics, fou
         results["min_" + k] = round(np.min(all_metrics), 2)
         results["std_" + k] = round(np.std(all_metrics), 2)
 
-    for k, v in ensemble_metrics.items():
-        results["ensemble_avg" + k] = round(v * 100, 2)
+    for k, v in avg_ensemble_metrics.items():
+        results["avg_ensemble_avg" + k] = round(v * 100, 2)
+
+    for k, v in vote_ensemble_metrics.items():
+        results["vote_ensemble_avg" + k] = round(v * 100, 2)
 
     if fout_name is not None:
-        _ = write_results_to_file(fout_name, "final", prompt_metrics, predictions, ensemble_metrics, avg_ensemble_predictions, golds)
+        _ = write_results_to_file(fout_name, "final", prompt_metrics, predictions,
+                                  avg_ensemble_metrics, avg_ensemble_predictions,
+                                  vote_ensemble_metrics, vote_ensemble_predictions, golds)
     return results

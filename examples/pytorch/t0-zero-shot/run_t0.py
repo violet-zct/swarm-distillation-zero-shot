@@ -36,8 +36,7 @@ def chunks(tot, bsz):
     return batches
 
 
-def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16, data_collator, metrics, model_name,
-                       ensemble_option):
+def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16, data_collator, metrics, model_name):
     # print("world size = {}".format(torch.distributed.get_world_size()))
     # ds_engine = deepspeed.init_inference(model, mp_size=torch.distributed.get_world_size(),
     #                                  dtype=torch.half if fp16 else torch.float,
@@ -82,8 +81,8 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16,
         if processed_batch % 10 == 0:
             logger.info("evaluating {} batches of test examples".format(processed_batch))
 
-    results = compute_metrics(all_loglikelihoods, len(test_data), test_data.num_choices, test_data.num_prompts, golds,
-                              metrics, fout_name=fout_name, ensemble_option=ensemble_option)
+    results = compute_metrics(all_loglikelihoods, len(test_data), test_data.num_choices, test_data.num_prompts,
+                              golds, metrics, fout_name=fout_name)
     for k, v in results.items():
         logger.info("{} = {}".format(k, v))
 
@@ -145,9 +144,9 @@ def main():
         tokenizer,
         label_pad_token_id=-100,
         pad_to_multiple_of=8 if training_args.fp16 else None,
-        expand_list=(test_args.loss_option in ["pseudo_train", "consistency_pseudo_train"]),
+        expand_list=(test_args.loss_option in ["consistency", "pseudo_train", "consistency_pseudo_train"]),
     )
-    if test_args.loss_option in ["pseudo_train", "consistency_pseudo_train"]:
+    if test_args.loss_option in ["consistency", "pseudo_train", "consistency_pseudo_train"]:
         test_data_collator = DataCollatorForSeq2Seq(
             tokenizer,
             label_pad_token_id=-100,
@@ -201,11 +200,11 @@ def main():
         )
         model.resize_token_embeddings(len(tokenizer))
         batched_evalute_t0(model, tokenizer, test_data, data_args, training_args.per_gpu_eval_batch_size,
-                           training_args.fp16, data_collator, metrics, model_args.model_name_or_path,
-                           test_args.ensemble_option)
+                           training_args.fp16, data_collator, metrics, model_args.model_name_or_path)
     elif test_args.test_mode == "ttt_t0" and test_args.train_data_source == 'stream':
         predictions = [[] for _ in range(test_data.num_prompts)]
         avg_ensemble_predictions = []
+        vote_ensemble_predictions = []
         golds = []
         model = _model_init()
         trainer = Trainer(
@@ -224,10 +223,10 @@ def main():
             if test_args.loss_option == "entropy":
                 # loss computed over answer space and prompts
                 train_data = TTTOnlineDataset(test_data, test_args, idx=i)
-            elif test_args.loss_option in ["consistency", "token_level_entropy"]:
+            elif test_args.loss_option in ["token_level_divergence", "token_level_entropy"]:
                 # loss computed at token level over prompts
                 train_data = TTTOnlineTokenLossDataset(test_data, test_args, idx=i)
-            elif test_args.loss_option in ["pseudo_train", "consistency_pseudo_train"]:
+            elif test_args.loss_option in ["consistency", "pseudo_train", "consistency_pseudo_train"]:
                 train_data = TTTOfflineLoopDataset(test_data, test_args, test_args.train_random_n_prompts,
                                                     training_args.per_gpu_eval_batch_size, idx=i)
             else:
@@ -236,12 +235,13 @@ def main():
             trainer.eval_dataset = TTTOnlineDataset(test_data, test_args, idx=i)
 
             # run train
-            if test_args.loss_option in ["pseudo_train", "consistency_pseudo_train"]:
+            if test_args.loss_option in ["consistency", "pseudo_train", "consistency_pseudo_train"]:
                 trainer.train_ttt(resume_from_checkpoint=None, reinit_model=(i==0))
             else:
                 trainer.train(resume_from_checkpoint=None, reinit_model=(i == 0))
-            prompt_preds, avg_ensemble_pred = trainer.evaluate()
+            prompt_preds, avg_ensemble_pred, vote_ensemble_pred = trainer.evaluate()
             avg_ensemble_predictions.append(avg_ensemble_pred)
+            vote_ensemble_predictions.append(vote_ensemble_pred)
             golds.append(train_data.gold_label if hasattr(train_data, 'gold_label') else train_data.gold_labels[0])
             for ii, pred in enumerate(prompt_preds):
                 predictions[ii].append(pred)
@@ -249,7 +249,7 @@ def main():
                         "gold label = {}".format(i, avg_ensemble_pred, golds[-1]))
 
         fout_name = training_args.output_dir
-        results = summarize_metrics(predictions, avg_ensemble_predictions, golds, metrics, fout_name=fout_name)
+        results = summarize_metrics(predictions, avg_ensemble_predictions, vote_ensemble_predictions, golds, metrics, fout_name=fout_name)
         for k, v in results.items():
             logger.info("{} = {}".format(k, v))
     else:
@@ -261,9 +261,9 @@ def main():
             if test_args.train_data_source == 'train' else test_data
         if test_args.loss_option == "entropy":
             train_data = TTTOfflineDataset(data, test_args, test_args.train_random_n_prompts)
-        elif test_args.loss_option in ["consistency", "token_level_entropy"]:
+        elif test_args.loss_option in ["token_level_divergence", "token_level_entropy"]:
             train_data = TTTOfflineTokenLossDataset(data, test_args, test_args.train_random_n_prompts)
-        elif test_args.loss_option in ["pseudo_train", "consistency_pseudo_train"]:
+        elif test_args.loss_option in ["consistency", "pseudo_train", "consistency_pseudo_train"]:
             train_data = TTTOfflineLoopDataset(data, test_args, test_args.train_random_n_prompts,
                                                training_args.per_gpu_eval_batch_size)
         else:
@@ -280,7 +280,7 @@ def main():
             compute_metrics=compute_metrics,  # todo: add metrics
             additional_metrics=metrics,
         )
-        if test_args.loss_option in ["pseudo_train", "consistency_pseudo_train"]:
+        if test_args.loss_option in ["consistency", "pseudo_train", "consistency_pseudo_train"]:
             trainer.train_ttt(resume_from_checkpoint=None)
         else:
             trainer.train(resume_from_checkpoint=None)

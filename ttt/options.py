@@ -116,8 +116,8 @@ class TestArguments:
     loss_option: Optional[str] = field(
         default="entropy",
         metadata={"help": "loss type for test mode",
-                  "choices": ["consistency", "entropy", "token_level_entropy",
-                              "pseudo_train", "consistency_pseudo_train"]}
+                  "choices": ["token_level_divergence", "entropy", "token_level_entropy",
+                              "consistency", "pseudo_train", "consistency_pseudo_train"]}
     )
 
     # options for consistency loss

@@ -1776,20 +1776,30 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         lm_logits = self.lm_head(sequence_output)
 
         loss = None
+        nll_loss = None
         if labels is not None:
             if hasattr(self.config, "test_mode"):
                 loss_fct = CrossEntropyLoss(ignore_index=-100, reduction='none')
             else:
                 loss_fct = CrossEntropyLoss(ignore_index=-100)
             loss = loss_fct(lm_logits.view(-1, lm_logits.size(-1)), labels.view(-1))
+
+            nll_loss = -loss.view(labels.size())  # log likelihood
+            target_mask = (labels != -100)
+            # target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
+            nll_loss = (nll_loss * target_mask).sum(1).mean()
             # TODO(thom): Add z_loss https://github.com/tensorflow/mesh/blob/fa19d69eafc9a482aff0b59ddd96b025c0cb207d/mesh_tensorflow/layers.py#L666
 
         if hasattr(self.config, "test_mode"):
             if getattr(self.config, 'test_mode', 'none') == 'ttt_t0' and self.training:
                 if getattr(self.config, 'loss_option', 'none') == 'entropy':
                     loss = self._compute_entropy_loss(loss, labels)
-                elif getattr(self.config, 'loss_option', 'none') == 'consistency':
+                elif getattr(self.config, 'loss_option', 'none') in ['consistency', 'consistency_pseudo_train']:
                     loss = self._compute_consistency_loss(lm_logits, labels)
+                    if self.is_true_answer_state:
+                        loss = loss + nll_loss
+                elif getattr(self.config, 'loss_option', 'none') == 'pseudo_train' and self.is_true_answer_state:
+                    loss = nll_loss
                 elif getattr(self.config, 'loss_option', 'none') == 'token_level_entropy':
                     loss = self._compute_token_level_entropy_loss(lm_logits, labels)
                 else:
@@ -1820,27 +1830,6 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             encoder_hidden_states=encoder_outputs.hidden_states,
             encoder_attentions=encoder_outputs.attentions,
         )
-
-    def _compute_consistency_loss_deprecated(self, lm_logits, labels):
-        # [batch, length]
-        target_mask = (labels != -100)
-        # target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
-        # [batch, length, vocab]
-        lm_logits = lm_logits * target_mask.unsqueeze(2)
-
-        num_targets = self.config.num_choices
-        bsz, length, vsz = lm_logits.size()
-        assert bsz % num_targets == 0
-        # [batch, length, vocab] -> [b, m, length, vocab]
-        lprobs = F.log_softmax(lm_logits, dim=-1).view(-1, num_targets, length, vsz)
-        bsz = lprobs.size(0)
-        random_n_prompts = self.config.train_random_n_prompts if getattr(self.config, 'train_random_n_prompts', '-1') > 0 else bsz
-        assert bsz % random_n_prompts == 0
-        # [b, n, m, length, vocab]
-        lprobs = lprobs.view(-1, random_n_prompts, num_targets, length, vsz)
-        bsz = lprobs.size(0)
-        # [b, m, length, vocab]
-        lprobs_avg = torch.logsumexp(lprobs, dim=1) - np.log(random_n_prompts)
 
     def _compute_consistency_loss(self, lm_logits, labels):
         # [batch, length]
