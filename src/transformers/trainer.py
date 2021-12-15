@@ -1808,9 +1808,15 @@ class Trainer:
                     if inner_step < self.train_dataset.dev_size:
                         model.eval()
                         logprobs, _, _ = self.prediction_step(model, inputs, prediction_loss_only=True)
-                        _, ens_pred = self.compute_metrics(logprobs, 1, self.train_dataset.num_choices,
-                                                           self.train_dataset.num_prompts,
-                                                           ensemble_option=self.args.ensemble_option)
+                        _, avg_ens_pred, vote_ens_pred = self.compute_metrics(logprobs, 1, self.train_dataset.num_choices,
+                                                                              self.train_dataset.num_prompts)
+
+                        if self.args.ensemble_option == "avg_prob":
+                            ens_pred = avg_ens_pred
+                        elif self.args.ensemble_option == "marjority_vote":
+                            ens_pred = vote_ens_pred
+                        else:
+                            raise ValueError("unknown ensemble: {}".format(self.args.ensemble_option))
 
                         if inner_step == self.train_dataset.dev_size - 1:
                             model = self._wrap_model(self.model)
@@ -2899,15 +2905,13 @@ class Trainer:
         if self.compute_metrics is not None and hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0':
             eval_datasize = 1 if self.args.train_data_source == 'stream' else self.eval_dataset.num_instances
             if self.args.train_data_source == 'stream':
-                preds = self.compute_metrics(all_losses, 1, self.eval_dataset.num_choices, self.eval_dataset.num_prompts,
-                                             ensemble_option=self.args.ensemble_option)
+                preds = self.compute_metrics(all_losses, 1, self.eval_dataset.num_choices, self.eval_dataset.num_prompts)
             else:
                 preds = self.compute_metrics(all_losses, eval_datasize, self.eval_dataset.num_choices,
                                              self.eval_dataset.num_prompts, self.eval_dataset.gold_labels,
                                              self.additional_metrics,
                                              fout_name=self.args.output_dir,
-                                             suffix=f'{self.state.global_step}',
-                                             ensemble_option=self.args.ensemble_option)
+                                             suffix=f'{self.state.global_step}')
             return EvalLoopOutput(predictions=preds, label_ids=None, metrics=None, num_samples=1)
         elif self.compute_metrics is not None and all_preds is not None and all_labels is not None:
             metrics = self.compute_metrics(EvalPrediction(predictions=all_preds, label_ids=all_labels))
