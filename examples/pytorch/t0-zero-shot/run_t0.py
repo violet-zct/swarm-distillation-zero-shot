@@ -277,6 +277,7 @@ def main():
             args=training_args,
             tokenizer=tokenizer,
             data_collator=data_collator,
+            test_data_collator=test_data_collator,
             compute_metrics=compute_metrics,  # todo: add metrics
             additional_metrics=metrics,
         )

@@ -1836,6 +1836,8 @@ class Trainer:
                     if not is_ensemble_answer and inputs["input_ids"].size(0) == 1:
                         # bsz = 1, not is_true_answer: skip
                         continue
+                    elif not is_ensemble_answer and self.args.loss_option == "pseudo_train":
+                        continue
                     else:
                         # bsz > 1, is_true_answer: loss 1 + loss 2
                         # bsz > 1, not is_true_answer: loss 1
