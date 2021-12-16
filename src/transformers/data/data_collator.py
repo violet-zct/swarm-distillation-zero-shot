@@ -579,6 +579,8 @@ class DataCollatorForSeq2Seq:
     def collate_list(self, list_of_features, return_tensors):
         import numpy as np
         results = []
+        # only one example can be accommodated
+        list_of_features = list_of_features[0]
         for features in list_of_features:
             labels = [feature["labels"] for feature in features] if "labels" in features[0].keys() else None
             # We have to pad the labels before calling `tokenizer.pad` as this method won't pad them and needs them of the

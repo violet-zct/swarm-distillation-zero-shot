@@ -269,6 +269,7 @@ class TTTOfflineLoopDataset(Dataset):
                 else:
                     random_prompts = np.random.choice(pgroup, self.random_n_prompts, replace=False)
                     results.append([self.dataset[s + pid * self.num_choices + ans_idx] for pid in random_prompts])
+        return results
 
 
 class TTTEvalDataset(Dataset):

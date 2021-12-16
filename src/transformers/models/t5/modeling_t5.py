@@ -1841,10 +1841,12 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         bsz, length, vsz = lm_logits.size()
         # [batch, length, vocab]
         lprobs = F.log_softmax(lm_logits, dim=-1)
-        random_n_prompts = self.config.train_random_n_prompts if getattr(self.config, 'train_random_n_prompts', '-1') > 0 else bsz
-        assert bsz % random_n_prompts == 0
+        # random_n_prompts = self.config.train_random_n_prompts if getattr(self.config, 'train_random_n_prompts', '-1') > 0 else bsz
+        # Hack: For Txx, we can only accommodate 1 example for one single device
+        instance_bsz = 1
+        random_n_prompts = bsz
         # [b, n, length, vocab]
-        lprobs = lprobs.view(-1, random_n_prompts, length, vsz)
+        lprobs = lprobs.view(instance_bsz, -1, length, vsz)
         bsz = lprobs.size(0)
         # [b, length, vocab]
         lprobs_avg = torch.logsumexp(lprobs, dim=1) - np.log(random_n_prompts)
@@ -1871,6 +1873,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         return loss
 
     def _compute_entropy_loss(self, loss, labels):
+        # answer-level entropy loss
         # [batch, length]
         loss = -loss.view(labels.size())  # log likelihood
         target_mask = (labels != -100)
@@ -1905,10 +1908,12 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         bsz, length, vsz = lm_logits.size()
         # [batch, length, vocab]
         lprobs = F.log_softmax(lm_logits, dim=-1)
-        random_n_prompts = self.config.train_random_n_prompts if getattr(self.config, 'train_random_n_prompts', '-1') > 0 else bsz
-        assert bsz % random_n_prompts == 0
+        # random_n_prompts = self.config.train_random_n_prompts if getattr(self.config, 'train_random_n_prompts', '-1') > 0 else bsz
+        # Hack: For Txx, we can only accommodate 1 example for one single device
+        instance_bsz = 1
+        random_n_prompts = bsz
         # [b, n, length, vocab]
-        lprobs = lprobs.view(-1, random_n_prompts, length, vsz)
+        lprobs = lprobs.view(instance_bsz, -1, length, vsz)
         # [b, length, vocab]
         lprobs_avg = torch.logsumexp(lprobs, dim=1) - np.log(random_n_prompts)
         # [b, length]

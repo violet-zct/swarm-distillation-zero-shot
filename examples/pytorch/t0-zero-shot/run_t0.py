@@ -199,7 +199,7 @@ def main():
             use_auth_token=True if model_args.use_auth_token else None,
         )
         model.resize_token_embeddings(len(tokenizer))
-        batched_evalute_t0(model, tokenizer, test_data, data_args, training_args.per_gpu_eval_batch_size,
+        batched_evalute_t0(model, tokenizer, test_data, data_args, training_args.per_device_eval_batch_size,
                            training_args.fp16, data_collator, metrics, model_args.model_name_or_path)
     elif test_args.test_mode == "ttt_t0" and test_args.train_data_source == 'stream':
         predictions = [[] for _ in range(test_data.num_prompts)]
@@ -228,7 +228,7 @@ def main():
                 train_data = TTTOnlineTokenLossDataset(test_data, test_args, idx=i)
             elif test_args.loss_option in ["consistency", "pseudo_train", "consistency_pseudo_train"]:
                 train_data = TTTOfflineLoopDataset(test_data, test_args, test_args.train_random_n_prompts,
-                                                    training_args.per_gpu_eval_batch_size, idx=i)
+                                                    training_args.per_device_eval_batch_size, idx=i)
             else:
                 raise NotImplementedError
             trainer.train_dataset = train_data
@@ -265,7 +265,7 @@ def main():
             train_data = TTTOfflineTokenLossDataset(data, test_args, test_args.train_random_n_prompts)
         elif test_args.loss_option in ["consistency", "pseudo_train", "consistency_pseudo_train"]:
             train_data = TTTOfflineLoopDataset(data, test_args, test_args.train_random_n_prompts,
-                                               training_args.per_gpu_eval_batch_size)
+                                               training_args.per_device_eval_batch_size)
         else:
             raise NotImplementedError
         test_set = TTTEvalDataset(test_data)
