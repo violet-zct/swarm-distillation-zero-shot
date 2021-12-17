@@ -42,10 +42,11 @@ DATE=`date +%Y%m%d`
 
 dataset="super_glue"
 subset="rte"
+testset_name="validation"
+
 bsz=1
 ga=16
 nprompts=10
-testset_name="validation"
 eval_bsz=50
 
 peft="lora"
@@ -56,7 +57,7 @@ lr=5e-5
 lr_scheduler_type="polynomial"
 max_steps=1000
 max_epochs=50
-eval_steps=50
+eval_steps=200
 log_steps=10
 debugsize=-1
 
