@@ -37,40 +37,46 @@ DATE=`date +%Y%m%d`
 
 dataset="super_glue"
 subset="rte"
-bsz=1
-nprompts=5
-gradient_acc=4
 testset_name="validation"
 
-peft="prompt_tuning"
+bsz=1
+ga=16
+nprompts=10
+eval_bsz=50
+
 peft="lora"
 pL=1
 lora_pos="encdec"
 
-lr=3e-5
+lr=5e-5
 lr_scheduler_type="polynomial"
 max_steps=1000
 max_epochs=50
-log_steps=10
 eval_steps=200
-warmup=100
-
+log_steps=10
 debugsize=-1
 
-#loss_opt="token_level_entropy"  # consistency, token_level_entropy, entropy
-# loss_opt="entropy"
-loss_opt=consistency
+# used when loss=entropy
 temp=1.0
 copt="uniform"
 
 test_mode="ttt_t0"
-train_data="validation"  # test, stream
-# train_data="train"  # test, stream
-# train_data="stream"
-# model="T0_3B"
-model="T0pp"
+train_data="validation"  # validation, train, stream
+model="T0_3B"
+# consistency, token_level_entropy, entropy, consistency_pseudo_train, pseudo_train
+loss_opt='consistency_pseudo_train'
+loss_opt='pseudo_train'
+jsd=0
+detach_kl_left=1
+detach_kl_right=0
+ensemble='marjority_vote'
+pseudo_weight=1.0
 
-exp_name=${test_mode}.train.source.${train_data}.${dataset}.${subset}.${testset_name}.${model}.np${nprompts}.peft.${peft}.bn${pL}.lora_pos.${lora_pos}.lopt.${loss_opt}.ga${gradient_acc}.combine.${copt}.temp.${temp}.lr.${lr}.warm.${warmup}
+exp_name=${test_mode}.train.source.${train_data}.${dataset}.${subset}
+exp_name+=.${testset_name}.${model}.peft.${peft}.bn${pL}.lora_pos
+exp_name+=.${lora_pos}.lopt.${loss_opt}.sg${sg}.pw${pseudo_weight}
+exp_name+=.np${nprompts}.bsz${bsz}.ga${ga}.lr${lr}.steps.${max_steps}
+
 SAVE=checkpoints/jh/${dataset}/${subset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 cp ${0} ${SAVE}/run.sh
@@ -80,10 +86,11 @@ cp ${0} ${SAVE}/run.sh
 #CUDA_VISIBLE_DEVICES=0
 # python -m torch.distributed.launch --nproc_per_node 4 examples/pytorch/t0-zero-shot/run_t0.py \
 # CUDA_VISIBLE_DEVICES=0 python -u examples/pytorch/t0-zero-shot/run_t0.py \
-deepspeed examples/pytorch/t0-zero-shot/run_t0.py \
-  --deepspeed deepspeed_configs/ds_config_zero2.json \
+# deepspeed examples/pytorch/t0-zero-shot/run_t0.py \
+#   --deepspeed deepspeed_configs/ds_config_zero2.json \
+python -u examples/pytorch/t0-zero-shot/run_t0.py \
   --dataset_name ${dataset} --subset_name ${subset} --prompt_set_name ${dataset} --testset_name ${testset_name} \
-  --model_name_or_path ${model} --per_device_train_batch_size ${bsz}  --per_device_eval_batch_size 10 \
+  --model_name_or_path ${model} --per_device_train_batch_size ${bsz}  --per_device_eval_batch_size ${eval_bsz} \
   --test_mode ${test_mode} --cache_dir ${cache_dir} \
   --debug_size ${debugsize} \
   --peft_option ${peft} --bottleneck_dim ${pL} \
@@ -91,15 +98,14 @@ deepspeed examples/pytorch/t0-zero-shot/run_t0.py \
   --adam_beta1 0.9 \
   --adam_beta2 0.98 \
   --adam_epsilon 1e-6 \
-  --learning_rate ${lr} \
-  --loss_option ${loss_opt} \
+  --learning_rate ${lr} --evaluation_strategy "steps" --eval_steps ${eval_steps} \
+  --loss_option ${loss_opt} --jsd ${jsd} --detach_kl_left ${detach_kl_left} --detach_kl_right ${detach_kl_right} \
+  --ensemble_option ${ensemble}  --pseudo_train_loss_weight ${pseudo_weight} \
   --lora_dropout 0.1 --lora_alpha 4 --lora_pos ${lora_pos} \
-  --prob_temperature ${temp} --combine_option ${copt} --detach_one_side 1 \
+  --prob_temperature ${temp} --combine_option ${copt} \
   --train_random_n_prompts ${nprompts} --train_data_source ${train_data} \
-  --save_strategy "no" --warmup_steps ${warmup} --gradient_accumulation_steps ${gradient_acc} \
-  --evaluation_strategy "steps" --eval_steps ${eval_steps} \
+  --save_strategy "no" --warmup_steps 100 --gradient_accumulation_steps ${ga} \
   --lr_scheduler_type ${lr_scheduler_type} \
   --output_dir ${SAVE} --overwrite_output_dir --report_to "none" \
   --bf16 \
   --disable_tqdm "True" 2>&1 | tee ${SAVE}/log.txt
-

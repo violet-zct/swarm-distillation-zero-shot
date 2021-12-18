@@ -1612,6 +1612,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         # Model parallel
         self.model_parallel = False
         self.device_map = None
+        self.is_true_answer_state = False
 
     @add_start_docstrings(PARALLELIZE_DOCSTRING)
     def parallelize(self, device_map=None):
@@ -1793,20 +1794,30 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         lm_logits = self.lm_head(sequence_output)
 
         loss = None
+        nll_loss = None
         if labels is not None:
             if hasattr(self.config, "test_mode"):
                 loss_fct = CrossEntropyLoss(ignore_index=-100, reduction='none')
             else:
                 loss_fct = CrossEntropyLoss(ignore_index=-100)
             loss = loss_fct(lm_logits.view(-1, lm_logits.size(-1)), labels.view(-1))
+
+            nll_loss = loss.view(labels.size())  # log likelihood
+            target_mask = (labels != -100)
+            # target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
+            nll_loss = (nll_loss * target_mask).sum(1).mean()
             # TODO(thom): Add z_loss https://github.com/tensorflow/mesh/blob/fa19d69eafc9a482aff0b59ddd96b025c0cb207d/mesh_tensorflow/layers.py#L666
 
         if hasattr(self.config, "test_mode"):
             if getattr(self.config, 'test_mode', 'none') == 'ttt_t0' and self.training:
                 if getattr(self.config, 'loss_option', 'none') == 'entropy':
                     loss = self._compute_entropy_loss(loss, labels)
-                elif getattr(self.config, 'loss_option', 'none') == 'consistency':
+                elif getattr(self.config, 'loss_option', 'none') in ['consistency', 'consistency_pseudo_train']:
                     loss = self._compute_consistency_loss(lm_logits, labels)
+                    if self.is_true_answer_state:
+                        loss = loss + self.config.pseudo_train_loss_weight * nll_loss
+                elif getattr(self.config, 'loss_option', 'none') == 'pseudo_train' and self.is_true_answer_state:
+                    loss = nll_loss
                 elif getattr(self.config, 'loss_option', 'none') == 'token_level_entropy':
                     loss = self._compute_token_level_entropy_loss(lm_logits, labels)
                 else:
@@ -1845,30 +1856,42 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         # [batch, length, vocab]
         lm_logits = lm_logits * target_mask.unsqueeze(2)
 
-        num_targets = self.config.num_choices
         bsz, length, vsz = lm_logits.size()
-        assert bsz % num_targets == 0
-        # [batch, length, vocab] -> [b, m, length, vocab]
-        lprobs = F.log_softmax(lm_logits, dim=-1).view(-1, num_targets, length, vsz)
+        # [batch, length, vocab]
+        lprobs = F.log_softmax(lm_logits, dim=-1)
+        # random_n_prompts = self.config.train_random_n_prompts if getattr(self.config, 'train_random_n_prompts', '-1') > 0 else bsz
+        # Hack: For Txx, we can only accommodate 1 example for one single device
+        instance_bsz = 1
+        random_n_prompts = bsz
+        # [b, n, length, vocab]
+        lprobs = lprobs.view(instance_bsz, -1, length, vsz)
         bsz = lprobs.size(0)
-        random_n_prompts = self.config.train_random_n_prompts if getattr(self.config, 'train_random_n_prompts', '-1') > 0 else bsz
-        assert bsz % random_n_prompts == 0
-        # [b, n, m, length, vocab]
-        lprobs = lprobs.view(-1, random_n_prompts, num_targets, length, vsz)
-        bsz = lprobs.size(0)
-        # [b, m, length, vocab]
+        # [b, length, vocab]
         lprobs_avg = torch.logsumexp(lprobs, dim=1) - np.log(random_n_prompts)
-        # [b, 1, m, length, vocab]
-        if self.config.detach_one_side:
-            lprobs_avg = lprobs_avg.detach().unsqueeze(1).expand(lprobs.size())
-        else:
-            lprobs_avg = lprobs_avg.unsqueeze(1).expand(lprobs.size())
-
         total_tokens = target_mask.sum().float()
-        loss = F.kl_div(lprobs, lprobs_avg, reduction='sum', log_target=True) / total_tokens
+
+        if self.config.jsd:
+            # KL (Pi || M)
+            if self.config.detach_kl_left:
+                lprobs = lprobs.detach()
+            if self.config.detach_kl_right:
+                lprobs_avg = lprobs_avg.detach()
+
+            lprobs_avg = lprobs_avg.unsqueeze(1).expand(bsz, random_n_prompts, length, vsz)
+            loss = F.kl_div(lprobs_avg, lprobs, reduction='sum', log_target=True) / total_tokens
+        else:
+            # KL (M || Pi): reverse JSD
+            if self.config.detach_kl_left:
+                lprobs_avg = lprobs_avg.detach()
+            if self.config.detach_kl_right:
+                lprobs = lprobs.detach()
+
+            lprobs_avg = lprobs_avg.unsqueeze(1).expand(bsz, random_n_prompts, length, vsz)
+            loss = F.kl_div(lprobs, lprobs_avg, reduction='sum', log_target=True) / total_tokens
         return loss
 
     def _compute_entropy_loss(self, loss, labels):
+        # answer-level entropy loss
         # [batch, length]
         loss = -loss.view(labels.size())  # log likelihood
         target_mask = (labels != -100)
@@ -1893,40 +1916,30 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             ents = ents / (ents.sum(1, keepdims=True))
             marginal_probs = (normalized_probs * ents.unsqueeze(-1)).sum(1)
         loss = -(marginal_probs * marginal_probs.log()).sum(1).mean()
-        # fixme: logger.info("rank = {}, normalized probs size= {}, probs = {}".format(torch.distributed.get_rank(), normalized_probs.size(), normalized_probs))
-        # marginal_probs = normalized_probs
-        # marginal_probs = normalized_probs.mean(0)
-        # loss = -(marginal_probs * marginal_probs.log()).sum()
-        # fixme
-        # print(
-        #     "rank = {}, loss= {}".format(torch.distributed.get_rank(), loss))
         return loss
 
     def _compute_token_level_entropy_loss(self, lm_logits, labels):
         # [batch, length]
         target_mask = (labels != -100)
         # target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
-        # [batch, length, vocab]
-        lm_logits = lm_logits * target_mask.unsqueeze(2)
 
-        num_targets = self.config.num_choices
         bsz, length, vsz = lm_logits.size()
-        assert bsz % num_targets == 0
-        # [batch, length, vocab] -> [b, m, length, vocab]
-        lprobs = F.log_softmax(lm_logits, dim=-1).view(-1, num_targets, length, vsz)
-        bsz = lprobs.size(0)
-        random_n_prompts = self.config.train_random_n_prompts if getattr(self.config, 'train_random_n_prompts', '-1') > 0 else bsz
-        assert bsz % random_n_prompts == 0
-        # [b, n, m, length, vocab]
-        lprobs = lprobs.view(-1, random_n_prompts, num_targets, length, vsz)
-        bsz = lprobs.size(0)
-        # [b, m, length, vocab]
+        # [batch, length, vocab]
+        lprobs = F.log_softmax(lm_logits, dim=-1)
+        # random_n_prompts = self.config.train_random_n_prompts if getattr(self.config, 'train_random_n_prompts', '-1') > 0 else bsz
+        # Hack: For Txx, we can only accommodate 1 example for one single device
+        instance_bsz = 1
+        random_n_prompts = bsz
+        # [b, n, length, vocab]
+        lprobs = lprobs.view(instance_bsz, -1, length, vsz)
+        # [b, length, vocab]
         lprobs_avg = torch.logsumexp(lprobs, dim=1) - np.log(random_n_prompts)
-        # [b, m, length]
-        loss = -(lprobs_avg.exp() * lprobs_avg).sum()
+        # [b, length]
+        mask = target_mask[0: bsz: random_n_prompts]
+        loss = -(lprobs_avg.exp() * lprobs_avg).sum(-1) * mask
 
         total_tokens = target_mask.sum().float()
-        loss = loss / total_tokens
+        loss = loss.sum() / total_tokens
         return loss
 
     def prepare_inputs_for_generation(
