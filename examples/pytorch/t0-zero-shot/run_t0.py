@@ -162,6 +162,7 @@ def main():
             cache_dir=model_args.cache_dir,
             revision=model_args.model_revision,
             use_auth_token=True if model_args.use_auth_token else None,
+            low_cpu_mem_usage=True,
         )
         for n, p in model.named_parameters():
             if test_args.peft_option == 'bitfit' and "bias" in n:

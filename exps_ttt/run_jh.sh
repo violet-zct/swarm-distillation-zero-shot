@@ -38,8 +38,8 @@ DATE=`date +%Y%m%d`
 dataset="super_glue"
 subset="rte"
 bsz=1
-nprompts=5
-gradient_acc=4
+nprompts=4
+gradient_acc=2
 testset_name="validation"
 
 peft="prompt_tuning"
@@ -51,8 +51,8 @@ lr=3e-5
 lr_scheduler_type="polynomial"
 max_steps=1000
 max_epochs=50
-log_steps=10
-eval_steps=200
+log_steps=1
+eval_steps=10
 warmup=100
 
 debugsize=-1

@@ -6,7 +6,6 @@
   "fp16": {
     "enabled": false,
     "loss_scale": 0,
-    "initial_scale_power": 16,
     "loss_scale_window": 1000,
     "hysteresis": 2,
     "min_loss_scale": 1
@@ -14,13 +13,18 @@
 
   "zero_optimization": {
     "stage": 2,
+
+    "offload_optimizer": {
+        "device": "cpu",
+        "pin_memory": true
+    },
+
     "allgather_partitions": true,
     "allgather_bucket_size": 2e8,
     "overlap_comm": true,
     "reduce_scatter": true,
     "reduce_bucket_size": 2e8,
-    "contiguous_gradients": true,
-    "cpu_offload": true
+    "contiguous_gradients": true
   },
 
   "zero_allow_untested_optimizer": true,

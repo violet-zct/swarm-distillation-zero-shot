@@ -312,12 +312,12 @@ class Linear(nn.Linear, LoRALayer):
             return w.T if self.fan_in_fan_out else w
 
         if self.r > 0 and not self.merged:
-            result = F.linear(x, T(self.weight), bias=self.bias)
+            result = F.linear(x, T(self.weight), self.bias)
             if self.r > 0:
                 result += (self.lora_dropout(x) @ self.ef_lora_A.T @ self.ef_lora_B.T) * self.scaling
             return result
         else:
-            return F.linear(x, T(self.weight), bias=self.bias)
+            return F.linear(x, T(self.weight), self.bias)
 
 
 class T5LayerNorm(nn.Module):
@@ -407,7 +407,9 @@ class T5LayerFF(nn.Module):
         hidden_states = hidden_states + self.dropout(forwarded_states)
         return hidden_states
 
-    # added by Junxian to fix fp16 problem of t5
+
+    # added by Junxian to fix fp16 problem of t5 (w/o deepspeed)
+    # this does not work for deepspeed
     # from https://github.com/huggingface/transformers/blob/c4c95d18e07c4826770f12b6c428706950a8cebd/src/transformers/models/t5/modeling_t5.py
     # def _forward(self, hidden_states):
     #     forwarded_states = self.layer_norm(hidden_states)
