@@ -1797,7 +1797,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
                 elif getattr(self.config, 'loss_option', 'none') in ['consistency', 'consistency_pseudo_train']:
                     loss = self._compute_consistency_loss(lm_logits, labels)
                     if self.is_true_answer_state:
-                        loss = loss + nll_loss
+                        loss = loss + self.config.pseudo_train_loss_weight * nll_loss
                 elif getattr(self.config, 'loss_option', 'none') == 'pseudo_train' and self.is_true_answer_state:
                     loss = nll_loss
                 elif getattr(self.config, 'loss_option', 'none') == 'token_level_entropy':

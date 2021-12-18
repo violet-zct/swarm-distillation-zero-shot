@@ -75,8 +75,9 @@ jsd=0
 detach_kl_left=1
 detach_kl_right=0
 ensemble='marjority_vote'
+pseudo_weight=1.0
 
-exp_name=${test_mode}.train.source.${train_data}.${dataset}.${subset}.${testset_name}.${model}.peft.${peft}.bn${pL}.lora_pos.${lora_pos}.lopt.${loss_opt}.sg${sg}.np${nprompts}.bsz${bsz}.ga${ga}.lr${lr}.steps.${max_steps}
+exp_name=${test_mode}.train.source.${train_data}.${dataset}.${subset}.${testset_name}.${model}.peft.${peft}.bn${pL}.lora_pos.${lora_pos}.lopt.${loss_opt}.sg${sg}.pw${pseudo_weight}.np${nprompts}.bsz${bsz}.ga${ga}.lr${lr}.steps.${max_steps}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 cp ${0} ${SAVE}/run.sh
@@ -97,7 +98,7 @@ python -u examples/pytorch/t0-zero-shot/run_t0.py \
   --adam_epsilon 1e-6 \
   --learning_rate ${lr} --evaluation_strategy "steps" --eval_steps ${eval_steps} \
   --loss_option ${loss_opt} --jsd ${jsd} --detach_kl_left ${detach_kl_left} --detach_kl_right ${detach_kl_right} \
-  --ensemble_option ${ensemble} \
+  --ensemble_option ${ensemble}  --pseudo_train_loss_weight ${pseudo_weight} \
   --lora_dropout 0.1 --lora_alpha 4 --lora_pos ${lora_pos} \
   --prob_temperature ${temp} --combine_option ${copt} \
   --train_random_n_prompts ${nprompts} --train_data_source ${train_data} \

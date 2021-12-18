@@ -120,6 +120,11 @@ class TestArguments:
                               "consistency", "pseudo_train", "consistency_pseudo_train"]}
     )
 
+    pseudo_train_loss_weight: Optional[float] = field(
+        default=1.,
+        metadata={"help": "used to"}
+    )
+
     # options for consistency loss
     jsd: Optional[int] = field(
         default=1,
