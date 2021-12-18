@@ -85,15 +85,14 @@ class TestArguments:
     )
 
     peft_option: str = field(
-        default="prompt_tuning",
-        metadata={"choices": ["prompt_tuning", "lora", "bitfit"],
+        default="none",
+        metadata={"choices": ["prompt_tuning", "lora", "bitfit", "none"],
                 "help": ""}
     )
 
     use_deepspeed: Optional[bool] = field(
         default=False,
     )
-
 
     debug_size: Optional[int] = field(
         default=-1,
@@ -117,12 +116,35 @@ class TestArguments:
     loss_option: Optional[str] = field(
         default="entropy",
         metadata={"help": "loss type for test mode",
-                  "choices": ["consistency", "entropy", "token_level_entropy"]}
+                  "choices": ["token_level_divergence", "entropy", "token_level_entropy",
+                              "consistency", "pseudo_train", "consistency_pseudo_train"]}
+    )
+
+    pseudo_train_loss_weight: Optional[float] = field(
+        default=1.,
+        metadata={"help": "used to"}
     )
 
     # options for consistency loss
-    detach_one_side: Optional[int] = field(
+    jsd: Optional[int] = field(
         default=1,
+        metadata={
+            "help": "jsd"
+        },
+    )
+
+    detach_kl_left: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": "detach the left side of KL"
+        },
+    )
+
+    detach_kl_right: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": "detach the right side of KL"
+        },
     )
 
     combine_option: Optional[str] = field(
@@ -162,4 +184,9 @@ class TestArguments:
     prune_prompt: Optional[str] = field(
         default=None,
         metadata={"help": "format is xx:yy, xx is the option, yy is the hyperparameter"}
+    )
+
+    ensemble_option: Optional[str] = field(
+        default="avg_prob",
+        metadata={"choices": ["avg_prob", "marjority_vote"]}
     )
