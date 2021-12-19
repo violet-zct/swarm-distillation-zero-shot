@@ -1852,6 +1852,13 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         )
 
     def _compute_consistency_loss(self, lm_logits, labels):
+        # import pdb; pdb.set_trace()
+
+        # added by Junxian
+        # skip consistency loss for one prompt
+        if lm_logits.size(0) == 0:
+            return 0
+
         # [batch, length]
         target_mask = (labels != -100)
         # target_mask = target_mask.logical_and(labels != self.config.eos_token_id)

@@ -1828,6 +1828,7 @@ class Trainer:
                 model = self._wrap_model(self.model, training=False)
                 self.is_in_train = False
                 all_logprobs = []
+                # import pdb; pdb.set_trace()
                 total_inner_steps = len(list_of_inputs) - self.train_dataset.dev_size
 
                 for inner_step, inputs in enumerate(list_of_inputs):

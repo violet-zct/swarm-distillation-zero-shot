@@ -48,11 +48,11 @@ peft="lora"
 pL=1
 lora_pos="encdec"
 
-lr=5e-5
+lr=3e-5
 lr_scheduler_type="polynomial"
 max_steps=1000
 max_epochs=50
-eval_steps=200
+eval_steps=100
 log_steps=10
 debugsize=-1
 
@@ -65,12 +65,12 @@ train_data="validation"  # validation, train, stream
 model="T0_3B"
 # consistency, token_level_entropy, entropy, consistency_pseudo_train, pseudo_train
 loss_opt='consistency_pseudo_train'
-loss_opt='pseudo_train'
+# loss_opt='pseudo_train'
 jsd=0
 detach_kl_left=1
 detach_kl_right=0
 ensemble='marjority_vote'
-pseudo_weight=1.0
+pseudo_weight=0.0
 
 exp_name=${test_mode}.train.source.${train_data}.${dataset}.${subset}
 exp_name+=.${testset_name}.${model}.peft.${peft}.bn${pL}.lora_pos
@@ -108,4 +108,5 @@ python -u examples/pytorch/t0-zero-shot/run_t0.py \
   --lr_scheduler_type ${lr_scheduler_type} \
   --output_dir ${SAVE} --overwrite_output_dir --report_to "none" \
   --bf16 \
-  --disable_tqdm "True" 2>&1 | tee ${SAVE}/log.txt
+  --disable_tqdm "True" \
+  2>&1 | tee ${SAVE}/log.txt
