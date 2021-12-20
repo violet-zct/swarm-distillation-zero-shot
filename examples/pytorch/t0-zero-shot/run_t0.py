@@ -271,6 +271,7 @@ def main():
             raise NotImplementedError
         # import pdb; pdb.set_trace()
         test_set = TTTEvalDataset(test_data)
+        print(f'prompt groups {train_data.prompt_groups}')
 
         trainer = Trainer(
             model=model,

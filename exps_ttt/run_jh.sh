@@ -36,11 +36,11 @@ export TOKENIZERS_PARALLELISM="false"
 DATE=`date +%Y%m%d`
 
 dataset="super_glue"
-subset="rte"
+subset="cb"
 testset_name="validation"
 
 bsz=1
-ga=16
+ga=8
 nprompts=10
 eval_bsz=50
 
@@ -52,7 +52,7 @@ lr=3e-5
 lr_scheduler_type="polynomial"
 max_steps=1000
 max_epochs=50
-eval_steps=100
+eval_steps=50
 log_steps=10
 debugsize=-1
 
@@ -70,7 +70,7 @@ jsd=0
 detach_kl_left=1
 detach_kl_right=0
 ensemble='marjority_vote'
-pseudo_weight=0.0
+pseudo_weight=1.0
 
 exp_name=${test_mode}.train.source.${train_data}.${dataset}.${subset}
 exp_name+=.${testset_name}.${model}.peft.${peft}.bn${pL}.lora_pos
