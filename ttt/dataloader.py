@@ -93,7 +93,13 @@ class DatasetByPrompt(Dataset):
 
     def extract_original_task_prompts(self):
         all_prompt_names = self.prompts.all_template_names
-        return [name for name in all_prompt_names if self.prompts[name].metadata.original_task]
+        valid_prompts = []
+        for name in all_prompt_names:
+            if self.prompts[name].metadata.original_task:
+                apply_length = len(self.prompts[name].apply(self.dataset[0]))
+                if apply_length == 2:
+                    valid_prompts.appen(name)
+        return valid_prompts
 
 
 class TTTOnlineDataset(Dataset):

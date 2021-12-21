@@ -69,7 +69,7 @@ elif [ ${dname} = "wsc" ]; then
   subset="wsc.fixed"
   testset_name="validation"
 elif [ ${dname} = "winogrande" ]; then
-  dataset="super_glue"
+  dataset="winogrande"
   subset="winogrande_xl"
   testset_name="validation"
 elif [ ${dname} = "copa" ]; then
@@ -91,6 +91,7 @@ elif [ ${dname} = "wic" ]; then
 else
   echo "wrong dataset name!"
   exit
+fi
 
 bsz=1
 ga=16
