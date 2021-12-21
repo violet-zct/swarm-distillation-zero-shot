@@ -1850,7 +1850,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         bsz = lprobs.size(0)
         # [b, length, vocab]
         lprobs_avg = torch.logsumexp(lprobs, dim=1) - np.log(random_n_prompts)
-        total_tokens = float(random_n_prompts) #target_mask.sum().float()
+        total_tokens = target_mask.sum().float()
 
         if self.config.jsd:
             # KL (Pi || M)
