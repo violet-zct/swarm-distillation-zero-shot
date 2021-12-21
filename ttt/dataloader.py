@@ -98,7 +98,7 @@ class DatasetByPrompt(Dataset):
             if self.prompts[name].metadata.original_task:
                 apply_length = len(self.prompts[name].apply(self.dataset[0]))
                 if apply_length == 2:
-                    valid_prompts.appen(name)
+                    valid_prompts.append(name)
         return valid_prompts
 
 
