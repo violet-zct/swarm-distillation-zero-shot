@@ -1801,7 +1801,7 @@ class Trainer:
                     self.control = self.callback_handler.on_step_begin(args, self.state, self.control)
 
                 # todo: check me, also deepspeed case
-                ens_pred = -1
+                ens_pred = None
                 model = self._wrap_model(self.model, training=False)
                 self.is_in_train = False
                 all_logprobs = []
@@ -1829,7 +1829,7 @@ class Trainer:
                         model = self._wrap_model(self.model)
                         self.is_in_train = True
 
-                    assert ens_pred != -1
+                    assert ens_pred is not None
                     # is_ensemble_answer = ((inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices == ens_pred)
                     # is_ensemble_answer = is_ensemble_answer and self.args.loss_option in ["consistency_pseudo_train", "pseudo_train"]
 
