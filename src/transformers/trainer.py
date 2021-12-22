@@ -1817,7 +1817,8 @@ class Trainer:
                     if inner_step == self.train_dataset.dev_size:
                         _, avg_ens_pred, vote_ens_pred = self.compute_metrics(all_logprobs, 1,
                                                                               self.train_dataset.num_choices,
-                                                                              self.train_dataset.num_prompts)
+                                                                              self.train_dataset.num_prompts,
+                                                                              pseudo_dist=self.args.pseudo_dist)
 
                         if self.args.ensemble_option == "avg_prob":
                             ens_pred = avg_ens_pred
