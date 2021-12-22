@@ -21,10 +21,11 @@ export HF_METRICS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
 cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
 
 # max cluster
-export TRANSFORMERS_CACHE=pretrain_models/huggingface
-export HF_DATASETS_CACHE=pretrain_models/huggingface
-export HF_METRICS_CACHE=pretrain_models/huggingface
-cache_dir=pretrain_models/huggingface
+root=/home1/xuezhema/projects/ttt-t0-transformers
+export TRANSFORMERS_CACHE=${root}/pretrain_models/huggingface
+export HF_DATASETS_CACHE=${root}/pretrain_models/huggingface
+export HF_METRICS_CACHE=${root}/pretrain_models/huggingface
+cache_dir=${root}/pretrain_models/huggingface
 export TRANSFORMERS_OFFLINE=1
 export WANDB_MODE=offline
 
