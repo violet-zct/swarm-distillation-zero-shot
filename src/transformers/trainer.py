@@ -133,6 +133,7 @@ from .training_args import ParallelMode, TrainingArguments
 from .utils import logging
 sys.path.insert(2, "./")
 from ttt.dataloader import TTTOfflineLoopDataset
+from ttt.utils import compute_loss_scale
 
 _is_torch_generator_available = False
 _is_native_amp_available = False
@@ -1828,7 +1829,7 @@ class Trainer:
                 model = self._wrap_model(self.model, training=False)
                 self.is_in_train = False
                 all_logprobs = []
-                import pdb; pdb.set_trace()
+                # import pdb; pdb.set_trace()
                 total_inner_steps = len(list_of_inputs) - self.train_dataset.dev_size
 
                 for inner_step, inputs in enumerate(list_of_inputs):
@@ -1839,34 +1840,41 @@ class Trainer:
                         continue
 
                     if inner_step == self.train_dataset.dev_size:
-                        _, avg_ens_pred, vote_ens_pred = self.compute_metrics(all_logprobs, 1,
+                        pred_labels, avg_ens_pred, vote_ens_pred = self.compute_metrics(all_logprobs, 1,
                                                                               self.train_dataset.num_choices,
                                                                               self.train_dataset.num_prompts)
 
-                        if self.args.ensemble_option == "avg_prob":
-                            ens_pred = avg_ens_pred
-                        elif self.args.ensemble_option == "marjority_vote":
-                            ens_pred = vote_ens_pred
-                        else:
-                            raise ValueError("unknown ensemble: {}".format(self.args.ensemble_option))
+
+                        import pdb; pdb.set_trace()
+                        loss_scale = compute_loss_scale(pred_labels, 
+                                                        self.train_dataset.prompt_groups,
+                                                        group_id=(inner_step - self.train_dataset.dev_size) // self.train_dataset.num_choices,
+                                                        answer_id=(inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices)  
+
+                        # if self.args.ensemble_option == "avg_prob":
+                        #     ens_pred = avg_ens_pred
+                        # elif self.args.ensemble_option == "marjority_vote":
+                        #     ens_pred = vote_ens_pred
+                        # else:
+                        #     raise ValueError("unknown ensemble: {}".format(self.args.ensemble_option))
 
                         model = self._wrap_model(self.model)
                         self.is_in_train = True
 
-                    assert ens_pred != -1
-                    is_ensemble_answer = ((inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices == ens_pred)
-                    is_ensemble_answer = is_ensemble_answer and self.args.loss_option in ["consistency_pseudo_train", "pseudo_train"]
+                    # assert ens_pred != -1
+                    # is_ensemble_answer = ((inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices == ens_pred)
+                    # is_ensemble_answer = is_ensemble_answer and self.args.loss_option in ["consistency_pseudo_train", "pseudo_train"]
 
-                    if not is_ensemble_answer and inputs["input_ids"].size(0) == 1:
-                        # bsz = 1, not is_true_answer: skip
-                        continue
-                    elif not is_ensemble_answer and self.args.loss_option == "pseudo_train":
-                        continue
-                    else:
-                        # bsz > 1, is_true_answer: loss 1 + loss 2
-                        # bsz > 1, not is_true_answer: loss 1
-                        # bsz = 1, is_true_answer: loss 2
-                        model.is_true_answer_state = is_ensemble_answer
+                    # if not is_ensemble_answer and inputs["input_ids"].size(0) == 1:
+                    #     # bsz = 1, not is_true_answer: skip
+                    #     continue
+                    # elif not is_ensemble_answer and self.args.loss_option == "pseudo_train":
+                    #     continue
+                    # else:
+                    #     # bsz > 1, is_true_answer: loss 1 + loss 2
+                    #     # bsz > 1, not is_true_answer: loss 1
+                    #     # bsz = 1, is_true_answer: loss 2
+                    #     model.is_true_answer_state = is_ensemble_answer
 
                     if (
                             ((step + 1) % args.gradient_accumulation_steps != 0)
@@ -1875,9 +1883,11 @@ class Trainer:
                     ):
                         # Avoid unnecessary DDP synchronization since there will be no backward pass on this example.
                         with model.no_sync():
-                            tr_loss_step = self.training_step(model, inputs, inner_steps=total_inner_steps)
+                            # tr_loss_step = self.training_step(model, inputs, inner_steps=total_inner_steps)
+                            tr_loss_step = self.training_step(model, inputs, inner_steps=self.train_dataset.num_prompts, scale=loss_scale)
                     else:
-                        tr_loss_step = self.training_step(model, inputs, inner_steps=total_inner_steps)
+                        # tr_loss_step = self.training_step(model, inputs, inner_steps=total_inner_steps)
+                        tr_loss_step = self.training_step(model, inputs, inner_steps=self.train_dataset.num_prompts, scale=loss_scale)
 
                     if (
                             args.logging_nan_inf_filter
@@ -2395,7 +2405,7 @@ class Trainer:
 
         return ctx_manager
 
-    def training_step(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]], inner_steps=None) -> torch.Tensor:
+    def training_step(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]], inner_steps=None, scale=1.0) -> torch.Tensor:
         """
         Perform a training step on a batch of inputs.
 
@@ -2429,6 +2439,9 @@ class Trainer:
 
         if inner_steps is not None:
             loss = loss / inner_steps
+
+        # Added by Junxian
+        loss = loss * scale
 
         if self.args.gradient_accumulation_steps > 1 and not self.deepspeed:
             # deepspeed handles loss scaling by gradient_accumulation_steps in its `backward`
