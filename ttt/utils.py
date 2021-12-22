@@ -74,11 +74,17 @@ def compute_metrics(logprobs,
             predictions[pidx].append(pred_label)
 
         avg_probs = avg_probs / num_prompts
-        avg_ensemble_predictions.append(np.argmax(avg_probs))
-
         all_preds = [ppt[-1] for ppt in predictions]
-        counts = [all_preds.count(ii) for ii in range(num_targets)]
-        vote_ensemble_predictions.append(np.argmax(counts))
+        counts = [all_preds.count(ii) + 1 for ii in range(num_targets)]
+        total = float(sum(counts))
+        vote_probs = [c / total for c in counts]
+
+        if num_examples == 1:
+            avg_ensemble_predictions.append(avg_probs)
+            vote_ensemble_predictions.append(vote_probs)
+        else:
+            avg_ensemble_predictions.append(np.argmax(avg_probs))
+            vote_ensemble_predictions.append(np.argmax(counts))
 
     if num_examples == 1:
         return [ppt[0] for ppt in predictions], avg_ensemble_predictions[0], vote_ensemble_predictions[0]
