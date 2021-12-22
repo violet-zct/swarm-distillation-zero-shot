@@ -2,6 +2,7 @@ from promptsource.templates import DatasetTemplates
 import datasets
 from torch.utils.data import Dataset
 import numpy as np
+import os
 from collections import defaultdict
 import logging
 
@@ -33,7 +34,10 @@ class DatasetByPrompt(Dataset):
                                                                                  len(self)))
 
     def load(self):
-        self.dataset = datasets.load_dataset(self.DATASET_NAME, self.SUBSET_NAME,
+        if self.DATASET_NAME == "story_cloze":
+            self.dataset = datasets.load_dataset("csv", data_files=os.path.join(self.cache_dir, "cloze_2016_val.csv"))["train"]
+        else:
+            self.dataset = datasets.load_dataset(self.DATASET_NAME, self.SUBSET_NAME,
                                              cache_dir=self.cache_dir)[self.TESTSET_NAME if self.split is None else self.split]
 
     @property

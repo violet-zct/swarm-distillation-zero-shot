@@ -103,7 +103,7 @@ peft="lora"
 pL=1
 lora_pos="encdec"
 
-lr=5e-5
+lr=3e-5
 lr_scheduler_type="polynomial"
 max_steps=1000
 max_epochs=50
