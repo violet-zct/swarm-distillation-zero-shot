@@ -83,8 +83,8 @@ def compute_metrics(logprobs,
         vote_probs = [c / total for c in counts]
 
         if pseudo_dist == 'argmax':
-            avg_probs = [1 if c == avg_label else 0 for c in avg_probs]
-            vote_probs = [1 if c == vote_label else 0 for c in vote_probs]
+            avg_probs = [1 if c == avg_label else 0 for c in range(num_targets)]
+            vote_probs = [1 if c == vote_label else 0 for c in range(num_targets)]
 
         if num_examples == 1:
             avg_ensemble_predictions.append(avg_probs)
