@@ -43,7 +43,7 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16,
     #                                  checkpoint=None,
     #                                  replace_method='auto')
     # model = ds_engine.module
-    fout_name = "results/" + "_".join([data_args.dataset_name, data_args.subset_name, model_name.replace("/", ".")])
+    fout_name = "results/" + "_".join([data_args.dataset_name, data_args.subset_name, data_args.testset_name, model_name.replace("/", ".")])
     model.eval()
     if fp16:
         model = model.half()
@@ -59,7 +59,7 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16,
     all_loglikelihoods = []
     processed_batch = 0
     vocab = tokenizer.get_vocab()
-    vocab = {v:k for k, v in vocab.items()}
+    vocab = {v: k for k, v in vocab.items()}
     print(vocab[0], vocab[1], vocab[2])
     for bid1, bid2 in chunks(len(all_data), batch_size):
         model_inputs = all_data[bid1: bid2]

@@ -1616,9 +1616,6 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         self.device_map = None
         self.is_true_answer_state = False
 
-        # Junxian
-        self.pseudo_train_weight = 1.
-
     @add_start_docstrings(PARALLELIZE_DOCSTRING)
     def parallelize(self, device_map=None):
         self.device_map = (
@@ -1803,14 +1800,10 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         if labels is not None:
             if hasattr(self.config, "test_mode"):
                 loss_fct = CrossEntropyLoss(ignore_index=-100, reduction='none')
-                # Junxian: average loss over tokens
-                # loss_fct = CrossEntropyLoss(ignore_index=-100, reduction='sum')
             else:
                 loss_fct = CrossEntropyLoss(ignore_index=-100)
             loss = loss_fct(lm_logits.view(-1, lm_logits.size(-1)), labels.view(-1))
-            # Junxian
-            # nll_loss = loss
-            # import pdb; pdb.set_trace()
+            
             nll_loss = loss.view(labels.size())  # log likelihood
             target_mask = (labels != -100)
             # target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
@@ -1824,15 +1817,12 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
                     loss = self._compute_entropy_loss(loss, labels)
                 elif getattr(self.config, 'loss_option', 'none') in ['consistency', 'consistency_pseudo_train']:
                     loss = self._compute_consistency_loss(lm_logits, labels)
-                    # if self.is_true_answer_state:
-                    #     loss = loss + self.config.pseudo_train_loss_weight * nll_loss
-                    # import pdb; pdb.set_trace()
-                    # Junxian
-                    loss = loss + self.pseudo_train_weight * nll_loss
-                # elif getattr(self.config, 'loss_option', 'none') == 'pseudo_train' and self.is_true_answer_state:
+
+                    if self.is_true_answer_state > 0:
+                        loss = loss + self.config.pseudo_train_loss_weight * self.is_true_answer_state * nll_loss
                 elif getattr(self.config, 'loss_option', 'none') == 'pseudo_train':
-                    # import pdb; pdb.set_trace()
-                    loss = self.pseudo_train_weight * nll_loss
+                    loss = self.is_true_answer_state * nll_loss
+
                 elif getattr(self.config, 'loss_option', 'none') == 'token_level_entropy':
                     loss = self._compute_token_level_entropy_loss(lm_logits, labels)
                 else:
@@ -1865,12 +1855,6 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         )
 
     def _compute_consistency_loss(self, lm_logits, labels):
-        # import pdb; pdb.set_trace()
-
-        # added by Junxian
-        # skip consistency loss for one prompt
-        # if lm_logits.size(0) == 0:
-        #     return 0
 
         # [batch, length]
         target_mask = (labels != -100)
@@ -1889,8 +1873,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         lprobs = lprobs.view(instance_bsz, -1, length, vsz)
         bsz = lprobs.size(0)
         # [b, length, vocab]
-        # lprobs_avg = torch.logsumexp(lprobs, dim=1) - np.log(random_n_prompts)
-        lprobs_avg = torch.logsumexp(lprobs, dim=1)
+        lprobs_avg = torch.logsumexp(lprobs, dim=1) - np.log(random_n_prompts)
         total_tokens = target_mask.sum().float()
 
         if self.config.jsd:
@@ -1911,8 +1894,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
                 lprobs = lprobs.detach()
 
             lprobs_avg = lprobs_avg.unsqueeze(1).expand(bsz, random_n_prompts, length, vsz)
-            # loss = F.kl_div(lprobs, lprobs_avg, reduction='sum', log_target=True) / total_tokens
-            loss = F.kl_div(lprobs, lprobs_avg, reduction='sum', log_target=True)
+            loss = F.kl_div(lprobs, lprobs_avg, reduction='sum', log_target=True) / total_tokens
         return loss
 
     def _compute_entropy_loss(self, loss, labels):

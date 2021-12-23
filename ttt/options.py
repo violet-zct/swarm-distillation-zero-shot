@@ -125,6 +125,12 @@ class TestArguments:
         metadata={"help": "used to"}
     )
 
+    pseudo_dist: Optional[str] = field(
+        default="smooth",
+        metadata={"help": "type of pseudo distribution",
+                  "choices": ["smooth", "argmax"]}
+    )
+
     # options for consistency loss
     jsd: Optional[int] = field(
         default=1,

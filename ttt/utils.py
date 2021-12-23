@@ -51,7 +51,8 @@ def compute_metrics(logprobs,
                     golds=None,
                     metrics=None,
                     fout_name=None,
-                    suffix=None):
+                    suffix=None,
+                    pseudo_dist="smooth"):
     predictions = [[] for _ in range(num_prompts)]
     entropies = [[] for _ in range(num_prompts)]
     avg_ensemble_predictions = []
@@ -74,11 +75,23 @@ def compute_metrics(logprobs,
             predictions[pidx].append(pred_label)
 
         avg_probs = avg_probs / num_prompts
-        avg_ensemble_predictions.append(np.argmax(avg_probs))
-
+        avg_label = np.argmax(avg_probs)
         all_preds = [ppt[-1] for ppt in predictions]
-        counts = [all_preds.count(ii) for ii in range(num_targets)]
-        vote_ensemble_predictions.append(np.argmax(counts))
+        counts = [all_preds.count(ii) + 1 for ii in range(num_targets)]
+        vote_label = np.argmax(counts)
+        total = float(sum(counts))
+        vote_probs = [c / total for c in counts]
+
+        if pseudo_dist == 'argmax':
+            avg_probs = [1 if c == avg_label else 0 for c in range(num_targets)]
+            vote_probs = [1 if c == vote_label else 0 for c in range(num_targets)]
+
+        if num_examples == 1:
+            avg_ensemble_predictions.append(avg_probs)
+            vote_ensemble_predictions.append(vote_probs)
+        else:
+            avg_ensemble_predictions.append(avg_label)
+            vote_ensemble_predictions.append(vote_label)
 
     if num_examples == 1:
         return [ppt[0] for ppt in predictions], avg_ensemble_predictions[0], vote_ensemble_predictions[0]

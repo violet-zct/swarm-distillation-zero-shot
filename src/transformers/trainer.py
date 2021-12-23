@@ -1825,7 +1825,7 @@ class Trainer:
                     self.control = self.callback_handler.on_step_begin(args, self.state, self.control)
 
                 # todo: check me, also deepspeed case
-                ens_pred = -1
+                ens_pred = None
                 model = self._wrap_model(self.model, training=False)
                 self.is_in_train = False
                 all_logprobs = []
@@ -1844,46 +1844,41 @@ class Trainer:
                         continue
 
                     if inner_step == self.train_dataset.dev_size:
-                        pred_labels, avg_ens_pred, vote_ens_pred = self.compute_metrics(all_logprobs, 1,
+                        _, avg_ens_pred, vote_ens_pred = self.compute_metrics(all_logprobs, 1,
                                                                               self.train_dataset.num_choices,
-                                                                              self.train_dataset.num_prompts)
+                                                                              self.train_dataset.num_prompts,
+                                                                              pseudo_dist=self.args.pseudo_dist)
 
 
 
-                        # if self.args.ensemble_option == "avg_prob":
-                        #     ens_pred = avg_ens_pred
-                        # elif self.args.ensemble_option == "marjority_vote":
-                        #     ens_pred = vote_ens_pred
-                        # else:
-                        #     raise ValueError("unknown ensemble: {}".format(self.args.ensemble_option))
+                        if self.args.ensemble_option == "avg_prob":
+                            ens_pred = avg_ens_pred
+                        elif self.args.ensemble_option == "marjority_vote":
+                            ens_pred = vote_ens_pred
+                        else:
+                            raise ValueError("unknown ensemble: {}".format(self.args.ensemble_option))
 
                         model = self._wrap_model(self.model)
                         self.is_in_train = True
 
-                    # import pdb; pdb.set_trace()
-                    loss_scale = compute_loss_scale(pred_labels,
-                                                    self.train_dataset.prompt_groups,
-                                                    group_id=(inner_step - self.train_dataset.dev_size) // self.train_dataset.num_choices,
-                                                    answer_id=(inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices)
-
-                    # import pdb; pdb.set_trace()
-
-                    model.pseudo_train_weight = loss_scale
-
-                    # assert ens_pred != -1
+                    assert ens_pred is not None
                     # is_ensemble_answer = ((inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices == ens_pred)
                     # is_ensemble_answer = is_ensemble_answer and self.args.loss_option in ["consistency_pseudo_train", "pseudo_train"]
 
-                    # if not is_ensemble_answer and inputs["input_ids"].size(0) == 1:
-                    #     # bsz = 1, not is_true_answer: skip
-                    #     continue
-                    # elif not is_ensemble_answer and self.args.loss_option == "pseudo_train":
-                    #     continue
-                    # else:
-                    #     # bsz > 1, is_true_answer: loss 1 + loss 2
-                    #     # bsz > 1, not is_true_answer: loss 1
-                    #     # bsz = 1, is_true_answer: loss 2
-                    #     model.is_true_answer_state = is_ensemble_answer
+                    if self.args.loss_option in ["consistency_pseudo_train", "pseudo_train"]:
+                        is_ensemble_answer = ens_pred[(inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices]
+                    else:
+                        is_ensemble_answer = -1
+
+                    if is_ensemble_answer < 1e-9 and inputs["input_ids"].size(0) == 1:
+                        # bsz = 1, not is_true_answer: skip
+                        continue
+                    else:
+                        # bsz > 1, is_true_answer: loss 1 + loss 2
+                        # bsz > 1, not is_true_answer: loss 1
+                        # bsz = 1, is_true_answer: loss 2
+                        model.is_true_answer_state = is_ensemble_answer
+
 
                     if (
                             ((step + 1) % args.gradient_accumulation_steps != 0)
@@ -1892,11 +1887,9 @@ class Trainer:
                     ):
                         # Avoid unnecessary DDP synchronization since there will be no backward pass on this example.
                         with model.no_sync():
-                            # tr_loss_step = self.training_step(model, inputs, inner_steps=total_inner_steps)
-                            tr_loss_step = self.training_step(model, inputs, inner_steps=self.train_dataset.num_prompts, scale=1. / total_inner_steps)
+                            tr_loss_step = self.training_step(model, inputs, inner_steps=total_inner_steps)
                     else:
-                        # tr_loss_step = self.training_step(model, inputs, inner_steps=total_inner_steps)
-                        tr_loss_step = self.training_step(model, inputs, inner_steps=self.train_dataset.num_prompts, scale=1. / total_inner_steps)
+                        tr_loss_step = self.training_step(model, inputs, inner_steps=total_inner_steps)
 
                     if (
                             args.logging_nan_inf_filter
@@ -2443,15 +2436,11 @@ class Trainer:
         with self.autocast_smart_context_manager():
             loss = self.compute_loss(model, inputs)
 
-        if inner_steps is not None:
-            loss = loss / inner_steps
-
-        # Added by Junxian
-        loss = loss * scale
-
         if self.args.n_gpu > 1:
             loss = loss.mean()  # mean() to average on multi-gpu parallel training
 
+        if inner_steps is not None:
+            loss = loss / inner_steps
 
         if self.args.gradient_accumulation_steps > 1 and not self.deepspeed:
             # deepspeed handles loss scaling by gradient_accumulation_steps in its `backward`
