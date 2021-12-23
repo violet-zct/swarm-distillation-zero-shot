@@ -42,7 +42,7 @@ DATE=`date +%Y%m%d`
 # dataset=story_cloze, subset=2016, not from huggingface datasets, local download
 # dataset=hallaswag
 
-dname="rte" # cb, wsc, copa, wic, anli_r1, anli_r2, anli_r3, winogrande, story_cloze, hellaswag
+dname="wsc" # cb, wsc, copa, wic, anli_r1, anli_r2, anli_r3, winogrande, story_cloze, hellaswag
 
 metric="accuracy"
 if [ ${dname} = "rte" ]; then
@@ -119,7 +119,7 @@ test_mode="ttt_t0"
 train_data="validation"  # validation, train, stream
 model="T0_3B"
 # consistency, token_level_entropy, entropy, consistency_pseudo_train, pseudo_train
-loss_opt='consistency_pseudo_train'
+# loss_opt='consistency_pseudo_train'
 loss_opt='pseudo_train'
 jsd=0
 detach_kl_left=1
@@ -133,9 +133,9 @@ SAVE=checkpoints/jh/${dname}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 cp ${0} ${SAVE}/run.sh
 
-#deepspeed --num_gpus=1 
-#python -u 
-#python -m torch.distributed.launch --nproc_per_node 4 
+#deepspeed --num_gpus=1
+#python -u
+#python -m torch.distributed.launch --nproc_per_node 4
 #CUDA_VISIBLE_DEVICES=0
 python -u examples/pytorch/t0-zero-shot/run_t0.py \
   --dataset_name ${dataset} --subset_name ${subset} --prompt_set_name ${dataset} --testset_name ${testset_name} \

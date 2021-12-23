@@ -1864,6 +1864,7 @@ class Trainer:
                     assert ens_pred is not None
                     # is_ensemble_answer = ((inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices == ens_pred)
                     # is_ensemble_answer = is_ensemble_answer and self.args.loss_option in ["consistency_pseudo_train", "pseudo_train"]
+                    # import pdb; pdb.set_trace()
 
                     if self.args.loss_option in ["consistency_pseudo_train", "pseudo_train"]:
                         is_ensemble_answer = ens_pred[(inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices]
