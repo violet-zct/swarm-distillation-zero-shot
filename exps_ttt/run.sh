@@ -21,10 +21,11 @@ export HF_METRICS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
 cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
 
 # max cluster
-export TRANSFORMERS_CACHE=pretrain_models/huggingface
-export HF_DATASETS_CACHE=pretrain_models/huggingface
-export HF_METRICS_CACHE=pretrain_models/huggingface
-cache_dir=pretrain_models/huggingface
+root=/home1/xuezhema/projects/ttt-t0-transformers
+export TRANSFORMERS_CACHE=${root}/pretrain_models/huggingface
+export HF_DATASETS_CACHE=${root}/pretrain_models/huggingface
+export HF_METRICS_CACHE=${root}/pretrain_models/huggingface
+cache_dir=${root}/pretrain_models/huggingface
 export TRANSFORMERS_OFFLINE=1
 export WANDB_MODE=offline
 
@@ -38,11 +39,60 @@ DATE=`date +%Y%m%d`
 # dataset=super_glue, subset=rte, cb, wsc.fixed, copa, wic
 # dataset=anli, subset=none, testset_name=dev_r1, dev_r2, dev_r3
 # dataset=winogrande, subset=winogrande_xl
-# dataset=store_cloze, subset=2016, not from huggingface datasets, local download
+# dataset=story_cloze, subset=2016, not from huggingface datasets, local download
+# dataset=hallaswag
 
-dataset="super_glue"
-subset="rte"
-testset_name="validation"
+dname="rte" # cb, wsc, copa, wic, anli_r1, anli_r2, anli_r3, winogrande, story_cloze, hellaswag
+
+metric="accuracy"
+if [ ${dname} = "rte" ]; then
+  dataset="super_glue"
+  subset="rte"
+  testset_name="validation"
+elif [ ${dname} = "cb" ]; then
+  dataset="super_glue"
+  subset="cb"
+  testset_name="validation"
+elif [ ${dname} = "anli_r1" ]; then
+  dataset="anli"
+  subset="none"
+  testset_name="dev_r1"
+elif [ ${dname} = "anli_r2" ]; then
+  dataset="anli"
+  subset="none"
+  testset_name="dev_r2"
+elif [ ${dname} = "anli_r3" ]; then
+  dataset="anli"
+  subset="none"
+  testset_name="dev_r3"
+elif [ ${dname} = "wsc" ]; then
+  dataset="super_glue"
+  subset="wsc.fixed"
+  testset_name="validation"
+elif [ ${dname} = "winogrande" ]; then
+  dataset="winogrande"
+  subset="winogrande_xl"
+  testset_name="validation"
+elif [ ${dname} = "copa" ]; then
+  dataset="super_glue"
+  subset="copa"
+  testset_name="validation"
+elif [ ${dname} = "hellaswag" ]; then
+  dataset="hellaswag"
+  subset="none"
+  testset_name="validation"
+elif [ ${dname} = "story_cloze" ]; then
+  dataset="story_cloze"
+  subset="2016"
+  testset_name="validation"
+elif [ ${dname} = "wic" ]; then
+  dataset="super_glue"
+  subset="wic"
+  testset_name="validation"
+else
+  echo "wrong dataset name!"
+  exit
+fi
 
 bsz=1
 ga=16
@@ -53,7 +103,7 @@ peft="lora"
 pL=1
 lora_pos="encdec"
 
-lr=5e-5
+lr=3e-5
 lr_scheduler_type="polynomial"
 max_steps=1000
 max_epochs=50
@@ -89,7 +139,7 @@ cp ${0} ${SAVE}/run.sh
 python -u examples/pytorch/t0-zero-shot/run_t0.py \
   --dataset_name ${dataset} --subset_name ${subset} --prompt_set_name ${dataset} --testset_name ${testset_name} \
   --model_name_or_path ${model} --per_device_train_batch_size ${bsz}  --per_device_eval_batch_size ${eval_bsz} \
-  --test_mode ${test_mode} --cache_dir ${cache_dir} \
+  --test_mode ${test_mode} --cache_dir ${cache_dir} --metric_name ${metric} \
   --debug_size ${debugsize} \
   --peft_option ${peft} --bottleneck_dim ${pL} \
   --do_train --logging_steps ${log_steps} --num_train_epochs ${max_epochs} --max_steps ${max_steps} \

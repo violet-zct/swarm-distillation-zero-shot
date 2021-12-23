@@ -2,6 +2,7 @@ from promptsource.templates import DatasetTemplates
 import datasets
 from torch.utils.data import Dataset
 import numpy as np
+import os
 from collections import defaultdict
 import logging
 
@@ -24,7 +25,7 @@ class DatasetByPrompt(Dataset):
 
         self.tokenizer = tokenizer
         self.prompts = DatasetTemplates(self.PROMPTSET_NAME, self.SUBSET_NAME)
-        self.original_task_prompts = self.extract_original_task_prompts()
+        self.original_task_prompts = self.extract_original_task_prompts(check_valid_prompts=self.SUBSET_NAME=="copa")
         self.construct_meta_info()
         self.num_choices = len(self.prompts[self.original_task_prompts[0]].get_answer_choices_list(self.dataset[0]))
         print("{} has {} original task prompts, number choices = {}, total test examples = {}".format(self.DATASET_NAME + ("/" + self.SUBSET_NAME) if self.SUBSET_NAME is not None else "",
@@ -33,7 +34,10 @@ class DatasetByPrompt(Dataset):
                                                                                  len(self)))
 
     def load(self):
-        self.dataset = datasets.load_dataset(self.DATASET_NAME, self.SUBSET_NAME,
+        if self.DATASET_NAME == "story_cloze":
+            self.dataset = datasets.load_dataset("csv", data_files=os.path.join(self.cache_dir, "cloze_2016_val.csv"))["train"]
+        else:
+            self.dataset = datasets.load_dataset(self.DATASET_NAME, self.SUBSET_NAME,
                                              cache_dir=self.cache_dir)[self.TESTSET_NAME if self.split is None else self.split]
 
     @property
@@ -91,9 +95,19 @@ class DatasetByPrompt(Dataset):
         assert check
         self.num_choices = n
 
-    def extract_original_task_prompts(self):
+    def extract_original_task_prompts(self, check_valid_prompts=False):
         all_prompt_names = self.prompts.all_template_names
-        return [name for name in all_prompt_names if self.prompts[name].metadata.original_task]
+        invalid_names = []
+        if check_valid_prompts:
+            for pname in all_prompt_names:
+                if self.prompts[pname].metadata.original_task:
+                    for d in self.dataset:
+                        return_value_length = len(self.prompts[pname].apply(d))
+                        if return_value_length != 2:
+                            invalid_names.append(pname)
+                            break
+        invalid_names = set(invalid_names)
+        return [name for name in all_prompt_names if self.prompts[name].metadata.original_task and name not in invalid_names]
 
 
 class TTTOnlineDataset(Dataset):
