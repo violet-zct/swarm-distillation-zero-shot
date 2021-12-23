@@ -1839,7 +1839,7 @@ class Trainer:
                     else:
                         is_ensemble_answer = -1
 
-                    if is_ensemble_answer < 0 and inputs["input_ids"].size(0) == 1:
+                    if is_ensemble_answer < 1e-9 and inputs["input_ids"].size(0) == 1:
                         # bsz = 1, not is_true_answer: skip
                         continue
                     else:
