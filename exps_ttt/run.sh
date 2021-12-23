@@ -103,7 +103,7 @@ peft="lora"
 pL=1
 lora_pos="encdec"
 
-lr=3e-5
+lr=2e-5
 lr_scheduler_type="polynomial"
 max_steps=1000
 max_epochs=50
@@ -124,11 +124,11 @@ loss_opt='pseudo_train'
 jsd=0
 detach_kl_left=1
 detach_kl_right=0
-ensemble='marjority_vote'
+ensemble='avg_prob'  # avg_prob, marjority_vote
 pseudo_weight=1.0
 pseudo_dist="smooth" # smooth (marginalized self-training), argmax
 
-exp_name=${test_mode}.train.source.${train_data}.${dataset}.${subset}.${testset_name}.${model}.peft.${peft}.bn${pL}.lora_pos.${lora_pos}.lopt.${loss_opt}.pd.${pseudo_dist}.sg${sg}.pw${pseudo_weight}.np${nprompts}.bsz${bsz}.ga${ga}.lr${lr}.steps.${max_steps}
+exp_name=${test_mode}.train.source.${train_data}.${dataset}.${subset}.${testset_name}.${model}.peft.${peft}.bn${pL}.lopt.${loss_opt}.pd.${pseudo_dist}.ens.${ensemble}.sg${sg}.pw${pseudo_weight}.np${nprompts}.bsz${bsz}.ga${ga}.lr${lr}.steps.${max_steps}
 SAVE=checkpoints/${dname}/${exp_name}_${DATE}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 cp ${0} ${SAVE}/run.sh
