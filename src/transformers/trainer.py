@@ -1831,12 +1831,16 @@ class Trainer:
                 all_logprobs = []
                 # import pdb; pdb.set_trace()
                 total_inner_steps = len(list_of_inputs) - self.train_dataset.dev_size
+                total_tokens_ttt = 0
 
                 for inner_step, inputs in enumerate(list_of_inputs):
                     if inner_step < self.train_dataset.dev_size:
                         model.eval()
+                        # import pdb; pdb.set_trace()
                         logprobs, _, _ = self.prediction_step(model, inputs, prediction_loss_only=True)
                         all_logprobs.extend(logprobs.cpu().numpy())
+
+                        total_tokens_ttt += (inputs['labels'] != -100).sum().float()
                         continue
 
                     if inner_step == self.train_dataset.dev_size:
@@ -1845,11 +1849,6 @@ class Trainer:
                                                                               self.train_dataset.num_prompts)
 
 
-                        import pdb; pdb.set_trace()
-                        loss_scale = compute_loss_scale(pred_labels, 
-                                                        self.train_dataset.prompt_groups,
-                                                        group_id=(inner_step - self.train_dataset.dev_size) // self.train_dataset.num_choices,
-                                                        answer_id=(inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices)  
 
                         # if self.args.ensemble_option == "avg_prob":
                         #     ens_pred = avg_ens_pred
@@ -1860,6 +1859,16 @@ class Trainer:
 
                         model = self._wrap_model(self.model)
                         self.is_in_train = True
+
+                    # import pdb; pdb.set_trace()
+                    loss_scale = compute_loss_scale(pred_labels,
+                                                    self.train_dataset.prompt_groups,
+                                                    group_id=(inner_step - self.train_dataset.dev_size) // self.train_dataset.num_choices,
+                                                    answer_id=(inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices)
+
+                    # import pdb; pdb.set_trace()
+
+                    model.pseudo_train_weight = loss_scale
 
                     # assert ens_pred != -1
                     # is_ensemble_answer = ((inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices == ens_pred)
@@ -1884,10 +1893,10 @@ class Trainer:
                         # Avoid unnecessary DDP synchronization since there will be no backward pass on this example.
                         with model.no_sync():
                             # tr_loss_step = self.training_step(model, inputs, inner_steps=total_inner_steps)
-                            tr_loss_step = self.training_step(model, inputs, inner_steps=self.train_dataset.num_prompts, scale=loss_scale)
+                            tr_loss_step = self.training_step(model, inputs, inner_steps=self.train_dataset.num_prompts, scale=1. / total_inner_steps)
                     else:
                         # tr_loss_step = self.training_step(model, inputs, inner_steps=total_inner_steps)
-                        tr_loss_step = self.training_step(model, inputs, inner_steps=self.train_dataset.num_prompts, scale=loss_scale)
+                        tr_loss_step = self.training_step(model, inputs, inner_steps=self.train_dataset.num_prompts, scale=1. / total_inner_steps)
 
                     if (
                             args.logging_nan_inf_filter
@@ -2434,14 +2443,15 @@ class Trainer:
         with self.autocast_smart_context_manager():
             loss = self.compute_loss(model, inputs)
 
-        if self.args.n_gpu > 1:
-            loss = loss.mean()  # mean() to average on multi-gpu parallel training
-
         if inner_steps is not None:
             loss = loss / inner_steps
 
         # Added by Junxian
         loss = loss * scale
+
+        if self.args.n_gpu > 1:
+            loss = loss.mean()  # mean() to average on multi-gpu parallel training
+
 
         if self.args.gradient_accumulation_steps > 1 and not self.deepspeed:
             # deepspeed handles loss scaling by gradient_accumulation_steps in its `backward`

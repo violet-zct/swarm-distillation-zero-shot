@@ -36,11 +36,13 @@ export TOKENIZERS_PARALLELISM="false"
 DATE=`date +%Y%m%d`
 
 dataset="super_glue"
-subset="cb"
+subset="rte"
+# subset="cb"
+# subset="wsc.fixed"
 testset_name="validation"
 
 bsz=1
-ga=8
+ga=16
 nprompts=10
 eval_bsz=50
 
@@ -50,6 +52,7 @@ lora_pos="encdec"
 
 lr=3e-5
 lr_scheduler_type="polynomial"
+warmup_steps=50
 max_steps=1000
 max_epochs=50
 eval_steps=50
@@ -64,8 +67,8 @@ test_mode="ttt_t0"
 train_data="validation"  # validation, train, stream
 model="T0_3B"
 # consistency, token_level_entropy, entropy, consistency_pseudo_train, pseudo_train
-loss_opt='consistency_pseudo_train'
-# loss_opt='pseudo_train'
+# loss_opt='consistency_pseudo_train'
+loss_opt='pseudo_train'
 jsd=0
 detach_kl_left=1
 detach_kl_right=0
@@ -104,7 +107,7 @@ python -u examples/pytorch/t0-zero-shot/run_t0.py \
   --lora_dropout 0.1 --lora_alpha 4 --lora_pos ${lora_pos} \
   --prob_temperature ${temp} --combine_option ${copt} \
   --train_random_n_prompts ${nprompts} --train_data_source ${train_data} \
-  --save_strategy "no" --warmup_steps 100 --gradient_accumulation_steps ${ga} \
+  --save_strategy "no" --warmup_steps ${warmup_steps} --gradient_accumulation_steps ${ga} \
   --lr_scheduler_type ${lr_scheduler_type} \
   --output_dir ${SAVE} --overwrite_output_dir --report_to "none" \
   --bf16 \
