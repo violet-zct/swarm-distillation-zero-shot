@@ -137,3 +137,29 @@ def summarize_metrics(predictions, avg_ensemble_predictions, vote_ensemble_predi
                                   avg_ensemble_metrics, avg_ensemble_predictions,
                                   vote_ensemble_metrics, vote_ensemble_predictions, golds)
     return results
+
+
+def compute_loss_scale(pred_labels, prompt_groups, group_id, answer_id):
+    """
+    compute how likely (unormalized) the prompts outside the current group supports the
+    current answer
+    """
+
+    total = 0
+    support = 0.
+    # for prompt_id, pred in enumerate(pred_labels):
+    #     if prompt_id not in prompt_groups[group_id]:
+    #         total += 1
+    #         if pred == answer_id:
+    #             support += 1.
+    for prompt_id, pred in enumerate(pred_labels):
+        total += 1
+        if pred == answer_id:
+            support += 1.
+
+    # only one group
+    if total == 0:
+        return 0
+
+    return support
+

@@ -16,11 +16,11 @@ class FeatureExtractionPipeline(Pipeline):
     `huggingface.co/models <https://huggingface.co/models>`__.
 
     Arguments:
-        model (:obj:`~transformers.PreTrainedModel` or :obj:`~transformers.TFPreTrainedModel`):
+        model (:class:`~transformers.PreTrainedModel` or :class:`~transformers.TFPreTrainedModel`):
             The model that will be used by the pipeline to make predictions. This needs to be a model inheriting from
             :class:`~transformers.PreTrainedModel` for PyTorch and :class:`~transformers.TFPreTrainedModel` for
             TensorFlow.
-        tokenizer (:obj:`~transformers.PreTrainedTokenizer`):
+        tokenizer (:class:`~transformers.PreTrainedTokenizer`):
             The tokenizer that will be used by the pipeline to encode data for the model. This object inherits from
             :class:`~transformers.PreTrainedTokenizer`.
         modelcard (:obj:`str` or :class:`~transformers.ModelCard`, `optional`):
@@ -41,12 +41,19 @@ class FeatureExtractionPipeline(Pipeline):
             the associated CUDA device id.
     """
 
-    def _sanitize_parameters(self, **kwargs):
-        return {}, {}, {}
+    def _sanitize_parameters(self, truncation=None, **kwargs):
+        preprocess_params = {}
+        if truncation is not None:
+            preprocess_params["truncation"] = truncation
+        return preprocess_params, {}, {}
 
-    def preprocess(self, inputs) -> Dict[str, GenericTensor]:
+    def preprocess(self, inputs, truncation=None) -> Dict[str, GenericTensor]:
         return_tensors = self.framework
-        model_inputs = self.tokenizer(inputs, return_tensors=return_tensors)
+        if truncation is None:
+            kwargs = {}
+        else:
+            kwargs = {"truncation": truncation}
+        model_inputs = self.tokenizer(inputs, return_tensors=return_tensors, **kwargs)
         return model_inputs
 
     def _forward(self, model_inputs):

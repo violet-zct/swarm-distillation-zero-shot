@@ -47,7 +47,7 @@ from transformers.utils.versions import require_version
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
-check_min_version("4.12.0.dev0")
+check_min_version("4.14.0.dev0")
 
 require_version("datasets>=1.13.3", "To fix: pip install -r examples/pytorch/text-classification/requirements.txt")
 
@@ -99,8 +99,23 @@ class ModelArguments:
         metadata={
             "help": "Probability of each feature vector along the time axis to be chosen as the start of the vector"
             "span to be masked. Approximately ``mask_time_prob * sequence_length // mask_time_length`` feature"
-            "vectors will be masked along the time axis. This is only relevant if ``apply_spec_augment is True``."
+            "vectors will be masked along the time axis."
         },
+    )
+    mask_time_length: Optional[int] = field(
+        default=10,
+        metadata={"help": "Length of vector span to mask along the time axis."},
+    )
+    mask_feature_prob: Optional[float] = field(
+        default=0.0,
+        metadata={
+            "help": "Probability of each feature vector along the feature axis to be chosen as the start of the vector"
+            "span to be masked. Approximately ``mask_feature_prob * sequence_length // mask_feature_length`` feature bins will be masked along the time axis."
+        },
+    )
+    mask_feature_length: Optional[int] = field(
+        default=10,
+        metadata={"help": "Length of vector span to mask along the feature axis."},
     )
     layerdrop: Optional[float] = field(default=0.0, metadata={"help": "The LayerDrop probability."})
     ctc_loss_reduction: Optional[str] = field(
@@ -169,6 +184,10 @@ class DataTrainingArguments:
         default=None,
         metadata={"help": "A list of characters to remove from the transcripts."},
     )
+    eval_metrics: Optional[List[str]] = list_field(
+        default=["wer"],
+        metadata={"help": "A list of metrics the model should be evaluated on. E.g. `'wer cer'`"},
+    )
     max_duration_in_seconds: Optional[float] = field(
         default=20.0,
         metadata={
@@ -185,6 +204,13 @@ class DataTrainingArguments:
             "This is especially useful when data preprocessing errors out in distributed training due to timeout. "
             "In this case, one should run the preprocessing in a non-distributed setup with `preprocessing_only=True` "
             "so that the cached datasets can consequently be loaded in distributed training"
+        },
+    )
+    use_auth_token: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "If :obj:`True`, will use the token generated when running"
+            ":obj:`transformers-cli logiin as HTTP bearer authorization for remote files."
         },
     )
 
@@ -349,7 +375,7 @@ def main():
 
     if data_args.text_column_name not in raw_datasets["train"].column_names:
         raise ValueError(
-            f"--text_column_name {data_args.audio_column_name} not found in dataset '{data_args.dataset_name}'. "
+            f"--text_column_name {data_args.text_column_name} not found in dataset '{data_args.dataset_name}'. "
             "Make sure to set `--text_column_name` to the correct text column - one of "
             f"{', '.join(raw_datasets['train'].column_names)}."
         )
@@ -388,27 +414,29 @@ def main():
     # the training and evaluation datasets
     # We need to make sure that only first rank saves vocabulary
     # make sure all processes wait until vocab is created
+    vocab_file = os.path.join(training_args.output_dir, "vocab.json")
 
-    with training_args.main_process_first(desc="dataset map vocabulary creation"):
-        vocab_dict = create_vocabulary_from_data(raw_datasets)
-
-        vocab_file = os.path.join(training_args.output_dir, "vocab.json")
-
-        # save vocab dict to be loaded into tokenizer
-        os.makedirs(training_args.output_dir, exist_ok=True)
+    with training_args.main_process_first():
         if training_args.overwrite_output_dir and os.path.isfile(vocab_file):
             os.remove(vocab_file)
 
+    with training_args.main_process_first(desc="dataset map vocabulary creation"):
         if not os.path.isfile(vocab_file):
-            with open(vocab_file, "w") as vocab_file:
-                json.dump(vocab_dict, vocab_file)
+            os.makedirs(training_args.output_dir, exist_ok=True)
+            vocab_dict = create_vocabulary_from_data(raw_datasets)
+
+            # save vocab dict to be loaded into tokenizer
+            with open(vocab_file, "w") as file:
+                json.dump(vocab_dict, file)
 
     # 4. Now we can instantiate the configuration, feature extractor, tokenizer and model
     # Note for distributed training, the .from_pretrained methods guarantee that only
     # one local process can concurrently download model & vocab.
 
     # load config
-    config = AutoConfig.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir)
+    config = AutoConfig.from_pretrained(
+        model_args.model_name_or_path, cache_dir=model_args.cache_dir, use_auth_token=data_args.use_auth_token
+    )
 
     # tokenizer is defined by `tokenizer_class` if present in config else by `model_type`
     config_for_tokenizer = config if config.tokenizer_class is not None else None
@@ -422,9 +450,10 @@ def main():
         unk_token="[UNK]",
         pad_token="[PAD]",
         word_delimiter_token="|",
+        use_auth_token=data_args.use_auth_token,
     )
     feature_extractor = AutoFeatureExtractor.from_pretrained(
-        model_args.model_name_or_path, cache_dir=model_args.cache_dir
+        model_args.model_name_or_path, cache_dir=model_args.cache_dir, use_auth_token=data_args.use_auth_token
     )
     processor = Wav2Vec2Processor(feature_extractor=feature_extractor, tokenizer=tokenizer)
 
@@ -436,6 +465,9 @@ def main():
             "hidden_dropout": model_args.hidden_dropout,
             "final_dropout": model_args.final_dropout,
             "mask_time_prob": model_args.mask_time_prob,
+            "mask_time_length": model_args.mask_time_length,
+            "mask_feature_prob": model_args.mask_feature_prob,
+            "mask_feature_length": model_args.mask_feature_length,
             "gradient_checkpointing": training_args.gradient_checkpointing,
             "layerdrop": model_args.layerdrop,
             "ctc_loss_reduction": model_args.ctc_loss_reduction,
@@ -447,7 +479,10 @@ def main():
 
     # create model
     model = AutoModelForCTC.from_pretrained(
-        model_args.model_name_or_path, cache_dir=model_args.cache_dir, config=config
+        model_args.model_name_or_path,
+        cache_dir=model_args.cache_dir,
+        config=config,
+        use_auth_token=data_args.use_auth_token,
     )
 
     # freeze encoder
@@ -506,8 +541,8 @@ def main():
     # Let's use word error rate (WER) as our evaluation metric,
     # instantiate a data collator and the trainer
 
-    # Define Metric during training
-    wer_metric = load_metric("wer")
+    # Define evaluation metrics during training, *i.e.* word error rate, character error rate
+    eval_metrics = {metric: load_metric(metric) for metric in data_args.eval_metrics}
 
     # for large datasets it is advised to run the preprocessing on a
     # single machine first with ``args.preprocessing_only`` since there will mostly likely
@@ -528,9 +563,9 @@ def main():
         # we do not want to group tokens when computing the metrics
         label_str = processor.batch_decode(pred.label_ids, group_tokens=False)
 
-        wer = wer_metric.compute(predictions=pred_str, references=label_str)
+        metrics = {k: v.compute(predictions=pred_str, references=label_str) for k, v in eval_metrics.items()}
 
-        return {"wer": wer}
+        return metrics
 
     # Instantiate custom data collator
     data_collator = DataCollatorCTCWithPadding(processor=processor)

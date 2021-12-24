@@ -177,6 +177,7 @@ def main():
             cache_dir=model_args.cache_dir,
             revision=model_args.model_revision,
             use_auth_token=True if model_args.use_auth_token else None,
+            low_cpu_mem_usage=True,
         )
         for n, p in model.named_parameters():
             if test_args.peft_option == 'bitfit' and "bias" in n:
@@ -268,7 +269,9 @@ def main():
                                                training_args.per_device_eval_batch_size)
         else:
             raise NotImplementedError
+        # import pdb; pdb.set_trace()
         test_set = TTTEvalDataset(test_data)
+        print(f'prompt groups {train_data.prompt_groups}')
 
         trainer = Trainer(
             model=model,

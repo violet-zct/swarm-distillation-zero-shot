@@ -17,7 +17,9 @@
 
 from typing import Optional
 
+import torch
 from torch import nn
+from torch.nn import CrossEntropyLoss
 
 from ...configuration_utils import PretrainedConfig
 from ...file_utils import add_start_docstrings, add_start_docstrings_to_model_forward, replace_return_docstrings
@@ -101,9 +103,9 @@ SPEECH_ENCODER_DECODER_INPUTS_DOCSTRING = r"""
             If :obj:`past_key_values` is used, optionally only the last :obj:`decoder_input_ids` have to be input (see
             :obj:`past_key_values`).
 
-            Provide for sequence to sequence training to the decoder. Indices can be obtained using
-            :class:`~transformers.PreTrainedTokenizer`. See :meth:`transformers.PreTrainedTokenizer.encode` and
-            :meth:`transformers.PreTrainedTokenizer.__call__` for details.
+            For training, :obj:`decoder_input_ids` are automatically created by the model by shifting the :obj:`labels`
+            to the right, replacing -100 by the :obj:`pad_token_id` and prepending them with the
+            :obj:`decoder_start_token_id`.
         decoder_attention_mask (:obj:`torch.BoolTensor` of shape :obj:`(batch_size, target_sequence_length)`, `optional`):
             Default behavior: generate a tensor that ignores pad tokens in :obj:`decoder_input_ids`. Causal mask will
             also be used by default.
@@ -149,6 +151,25 @@ SPEECH_ENCODER_DECODER_INPUTS_DOCSTRING = r"""
 """
 
 
+# Copied from transformers.models.encoder_decoder.modeling_encoder_decoder.shift_tokens_right
+def shift_tokens_right(input_ids: torch.Tensor, pad_token_id: int, decoder_start_token_id: int):
+    """
+    Shift input ids one token to the right.
+    """
+    shifted_input_ids = input_ids.new_zeros(input_ids.shape)
+    shifted_input_ids[:, 1:] = input_ids[:, :-1].clone()
+    if decoder_start_token_id is None:
+        raise ValueError("Make sure to set the decoder_start_token_id attribute of the model's configuration.")
+    shifted_input_ids[:, 0] = decoder_start_token_id
+
+    if pad_token_id is None:
+        raise ValueError("Make sure to set the pad_token_id attribute of the model's configuration.")
+    # replace possible -100 values in labels by `pad_token_id`
+    shifted_input_ids.masked_fill_(shifted_input_ids == -100, pad_token_id)
+
+    return shifted_input_ids
+
+
 @add_start_docstrings(SPEECH_ENCODER_DECODER_START_DOCSTRING)
 class SpeechEncoderDecoderModel(PreTrainedModel):
     r"""
@@ -173,6 +194,15 @@ class SpeechEncoderDecoderModel(PreTrainedModel):
         else:
             if not isinstance(config, self.config_class):
                 raise ValueError(f"Config: {config} has to be of type {self.config_class}")
+
+        if config.decoder.cross_attention_hidden_size is not None:
+            if config.decoder.cross_attention_hidden_size != config.encoder.hidden_size:
+                raise ValueError(
+                    "If `cross_attention_hidden_size` is specified in the decoder's configuration, "
+                    "it has to be equal to the encoder's `hidden_size`. "
+                    f"Got {config.decoder.cross_attention_hidden_size} for `config.decoder.cross_attention_hidden_size` "
+                    f"and {config.encoder.hidden_size} for `config.encoder.hidden_size`."
+                )
 
         # initialize with config
         # make sure input & output embeddings is not tied
@@ -202,7 +232,12 @@ class SpeechEncoderDecoderModel(PreTrainedModel):
         self.encoder.config = self.config.encoder
         self.decoder.config = self.config.decoder
 
-        if self.encoder.config.hidden_size != self.decoder.config.hidden_size:
+        # get encoder output hidden size
+        self.encoder_output_dim = getattr(config.encoder, "output_hidden_size", config.encoder.hidden_size)
+        if (
+            self.encoder_output_dim != self.decoder.config.hidden_size
+            and self.decoder.config.cross_attention_hidden_size is None
+        ):
             # encoder outputs might need to be projected to different dimension for decoder
             self.enc_to_dec_proj = nn.Linear(self.encoder.config.hidden_size, self.decoder.config.hidden_size)
 
@@ -225,11 +260,11 @@ class SpeechEncoderDecoderModel(PreTrainedModel):
 
     @classmethod
     def from_pretrained(cls, *args, **kwargs):
-        # At the moment fast initialization is not supported
-        # for composite models
+        # At the moment fast initialization is not supported for composite models
         if kwargs.get("_fast_init", False):
             logger.warning(
-                "Fast initialization is currently not supported for SpeechEncoderDecoderModel. Falling back to slow intialization..."
+                "Fast initialization is currently not supported for SpeechEncoderDecoderModel. "
+                "Falling back to slow initialization..."
             )
         kwargs["_fast_init"] = False
         return super().from_pretrained(*args, **kwargs)
@@ -323,13 +358,13 @@ class SpeechEncoderDecoderModel(PreTrainedModel):
         if encoder is None:
             if encoder_pretrained_model_name_or_path is None:
                 raise ValueError(
-                    f"No `encoder_model` is passed to kwargs: {kwargs_encoder}. In this case make sure that `encoder_pretrained_model_name_or_path` defined"
+                    "If `encoder_model` is not defined as an argument, a `encoder_pretrained_model_name_or_path` has "
+                    "to be defined."
                 )
 
             if "config" not in kwargs_encoder:
                 encoder_config = AutoConfig.from_pretrained(encoder_pretrained_model_name_or_path)
                 if encoder_config.is_decoder is True or encoder_config.add_cross_attention is True:
-
                     logger.info(
                         f"Initializing {encoder_pretrained_model_name_or_path} as a encoder model "
                         "from a decoder model. Cross-attention and casual mask are disabled."
@@ -345,7 +380,8 @@ class SpeechEncoderDecoderModel(PreTrainedModel):
         if decoder is None:
             if decoder_pretrained_model_name_or_path is None:
                 raise ValueError(
-                    "If `decoder_model` is not defined as an argument, a `decoder_pretrained_model_name_or_path` has to be defined"
+                    "If `decoder_model` is not defined as an argument, a `decoder_pretrained_model_name_or_path` has "
+                    "to be defined."
                 )
 
             if "config" not in kwargs_decoder:
@@ -353,8 +389,9 @@ class SpeechEncoderDecoderModel(PreTrainedModel):
                 if decoder_config.is_decoder is False or decoder_config.add_cross_attention is False:
                     logger.info(
                         f"Initializing {decoder_pretrained_model_name_or_path} as a decoder model. "
-                        "Cross attention layers are added to {decoder_pretrained_model_name_or_path} "
-                        "and randomly initialized if {decoder_pretrained_model_name_or_path}'s architecture allows for cross attention layers."
+                        f"Cross attention layers are added to {decoder_pretrained_model_name_or_path} "
+                        f"and randomly initialized if {decoder_pretrained_model_name_or_path}'s architecture allows for "
+                        "cross attention layers."
                     )
                     decoder_config.is_decoder = True
                     decoder_config.add_cross_attention = True
@@ -366,7 +403,8 @@ class SpeechEncoderDecoderModel(PreTrainedModel):
                     f"Decoder model {decoder_pretrained_model_name_or_path} is not initialized as a decoder. "
                     f"In order to initialize {decoder_pretrained_model_name_or_path} as a decoder, "
                     "make sure that the attributes `is_decoder` and `add_cross_attention` of `decoder_config` "
-                    "passed to `.from_encoder_decoder_pretrained(...)` are set to `True` or do not pass a `decoder_config` to `.from_encoder_decoder_pretrained(...)`"
+                    "passed to `.from_encoder_decoder_pretrained(...)` are set to `True` or do not pass a "
+                    "`decoder_config` to `.from_encoder_decoder_pretrained(...)`"
                 )
 
             decoder = AutoModelForCausalLM.from_pretrained(decoder_pretrained_model_name_or_path, **kwargs_decoder)
@@ -403,25 +441,19 @@ class SpeechEncoderDecoderModel(PreTrainedModel):
         Examples::
 
             >>> from transformers import SpeechEncoderDecoderModel, Speech2Text2Processor
+            >>> from datasets import load_dataset
             >>> import torch
 
             >>> processor = Speech2Text2Processor.from_pretrained('facebook/s2t-wav2vec2-large-en-de')
             >>> model = SpeechEncoderDecoderModel.from_pretrained('facebook/s2t-wav2vec2-large-en-de')
 
-            >>> # process dataset
-            >>> def map_to_array(batch):
-            >>>     speech, _ = sf.read(batch["file"])
-            >>>     batch["speech"] = speech
-            >>>     return batch
-
             >>> ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
-            >>> ds = ds.map(map_to_array)
 
-            >>> input_values = processor(ds["speech"][0], return_tensors="pt").input_values  # Batch size 1
+            >>> input_values = processor(ds[0]["audio"]["array"], return_tensors="pt").input_values
             >>> decoder_input_ids = torch.tensor([[model.config.decoder.decoder_start_token_id]])
             >>> outputs = model(input_values=input_values, decoder_input_ids=decoder_input_ids)
 
-            >>> # generation
+            >>> # inference (generation)
             >>> generated = model.generate(input_values)
             >>> translation = processor.batch_decode(generated)
 
@@ -455,8 +487,11 @@ class SpeechEncoderDecoderModel(PreTrainedModel):
 
         encoder_hidden_states = encoder_outputs[0]
 
-        # project encoder_hidden_states
-        if self.encoder.config.hidden_size != self.decoder.config.hidden_size:
+        # optionally project encoder_hidden_states
+        if (
+            self.encoder_output_dim != self.decoder.config.hidden_size
+            and self.decoder.config.cross_attention_hidden_size is None
+        ):
             encoder_hidden_states = self.enc_to_dec_proj(encoder_hidden_states)
 
         # compute correct encoder attention mask
@@ -466,6 +501,11 @@ class SpeechEncoderDecoderModel(PreTrainedModel):
             )
         else:
             encoder_attention_mask = None
+
+        if (labels is not None) and (decoder_input_ids is None and decoder_inputs_embeds is None):
+            decoder_input_ids = shift_tokens_right(
+                labels, self.config.pad_token_id, self.config.decoder_start_token_id
+            )
 
         # Decode
         decoder_outputs = self.decoder(
@@ -482,19 +522,33 @@ class SpeechEncoderDecoderModel(PreTrainedModel):
             **kwargs_decoder,
         )
 
+        # Compute loss independent from decoder (as some shift the logits inside them)
+        loss = None
+        if labels is not None:
+            logits = decoder_outputs.logits if return_dict else decoder_outputs[1]
+            loss_fct = CrossEntropyLoss()
+            loss = loss_fct(logits.reshape(-1, self.decoder.config.vocab_size), labels.view(-1))
+
         if not return_dict:
-            return decoder_outputs + encoder_outputs
+            if loss is not None:
+                return (loss,) + decoder_outputs + encoder_outputs
+            else:
+                return decoder_outputs + encoder_outputs
 
         return Seq2SeqLMOutput(
+            loss=loss,
             logits=decoder_outputs.logits,
             past_key_values=decoder_outputs.past_key_values,
             decoder_hidden_states=decoder_outputs.hidden_states,
             decoder_attentions=decoder_outputs.attentions,
             cross_attentions=decoder_outputs.cross_attentions,
-            encoder_last_hidden_state=encoder_hidden_states,
+            encoder_last_hidden_state=encoder_outputs.last_hidden_state,
             encoder_hidden_states=encoder_outputs.hidden_states,
             encoder_attentions=encoder_outputs.attentions,
         )
+
+    def prepare_decoder_input_ids_from_labels(self, labels: torch.Tensor):
+        return shift_tokens_right(labels, self.config.pad_token_id, self.config.decoder_start_token_id)
 
     def prepare_inputs_for_generation(
         self, input_ids, past=None, attention_mask=None, use_cache=None, encoder_outputs=None, **kwargs

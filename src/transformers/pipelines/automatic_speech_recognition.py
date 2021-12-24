@@ -77,13 +77,13 @@ class AutomaticSpeechRecognitionPipeline(Pipeline):
     def __init__(self, feature_extractor: Union["SequenceFeatureExtractor", str], *args, **kwargs):
         """
         Arguments:
-            feature_extractor (:obj:`~transformers.SequenceFeatureExtractor`):
+            feature_extractor (:class:`~transformers.SequenceFeatureExtractor`):
                 The feature extractor that will be used by the pipeline to encode waveform for the model.
-            model (:obj:`~transformers.PreTrainedModel` or :obj:`~transformers.TFPreTrainedModel`):
+            model (:class:`~transformers.PreTrainedModel` or :class:`~transformers.TFPreTrainedModel`):
                 The model that will be used by the pipeline to make predictions. This needs to be a model inheriting
                 from :class:`~transformers.PreTrainedModel` for PyTorch and :class:`~transformers.TFPreTrainedModel`
                 for TensorFlow.
-            tokenizer (:obj:`~transformers.PreTrainedTokenizer`):
+            tokenizer (:class:`~transformers.PreTrainedTokenizer`):
                 The tokenizer that will be used by the pipeline to encode data for the model. This object inherits from
                 :class:`~transformers.PreTrainedTokenizer`.
             modelcard (:obj:`str` or :class:`~transformers.ModelCard`, `optional`):
@@ -106,7 +106,7 @@ class AutomaticSpeechRecognitionPipeline(Pipeline):
         if self.framework == "tf":
             raise ValueError("The AutomaticSpeechRecognitionPipeline is only available in PyTorch.")
 
-        self.check_model_type(MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING.items() + MODEL_FOR_CTC_MAPPING.items())
+        self.check_model_type(dict(MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING.items() + MODEL_FOR_CTC_MAPPING.items()))
 
     def __call__(
         self,
@@ -114,7 +114,7 @@ class AutomaticSpeechRecognitionPipeline(Pipeline):
         **kwargs,
     ):
         """
-        Classify the sequence(s) given as inputs. See the :obj:`~transformers.AutomaticSpeechRecognitionPipeline`
+        Classify the sequence(s) given as inputs. See the :class:`~transformers.AutomaticSpeechRecognitionPipeline`
         documentation for more information.
 
         Args:
@@ -167,6 +167,10 @@ class AutomaticSpeechRecognitionPipeline(Pipeline):
             )
             tokens = tokens.squeeze(0)
         elif model_class in MODEL_FOR_CTC_MAPPING.values():
+            outputs = self.model(**model_inputs)
+            tokens = outputs.logits.squeeze(0).argmax(dim=-1)
+        else:
+            logger.warning("This is an unknown class, treating it as CTC.")
             outputs = self.model(**model_inputs)
             tokens = outputs.logits.squeeze(0).argmax(dim=-1)
         return tokens

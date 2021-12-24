@@ -312,12 +312,12 @@ class Linear(nn.Linear, LoRALayer):
             return w.T if self.fan_in_fan_out else w
 
         if self.r > 0 and not self.merged:
-            result = F.linear(x, T(self.weight), bias=self.bias)
+            result = F.linear(x, T(self.weight), self.bias)
             if self.r > 0:
                 result += (self.lora_dropout(x) @ self.ef_lora_A.T @ self.ef_lora_B.T) * self.scaling
             return result
         else:
-            return F.linear(x, T(self.weight), bias=self.bias)
+            return F.linear(x, T(self.weight), self.bias)
 
 
 class T5LayerNorm(nn.Module):
@@ -335,8 +335,8 @@ class T5LayerNorm(nn.Module):
         hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
 
         # convert into float16 if necessary
-        if self.weight.dtype == torch.float16:
-            hidden_states = hidden_states.to(torch.float16)
+        if self.weight.dtype in [torch.float16, torch.bfloat16]:
+            hidden_states = hidden_states.to(self.weight.dtype)
         return self.weight * hidden_states
 
 
@@ -392,7 +392,7 @@ class T5LayerFF(nn.Module):
         if config.feed_forward_proj == "relu":
             self.DenseReluDense = T5DenseReluDense(config)
         elif config.feed_forward_proj == "gated-gelu":
-            self.DenseReluDense = T5DenseGatedGeluDense(config)
+           self.DenseReluDense = T5DenseGatedGeluDense(config)
         else:
             raise ValueError(
                 f"{self.config.feed_forward_proj} is not supported. Choose between `relu` and `gated-gelu`"
@@ -406,6 +406,26 @@ class T5LayerFF(nn.Module):
         forwarded_states = self.DenseReluDense(forwarded_states)
         hidden_states = hidden_states + self.dropout(forwarded_states)
         return hidden_states
+
+
+    # added by Junxian to fix fp16 problem of t5 (w/o deepspeed)
+    # this does not work for deepspeed
+    # from https://github.com/huggingface/transformers/blob/c4c95d18e07c4826770f12b6c428706950a8cebd/src/transformers/models/t5/modeling_t5.py
+    # def _forward(self, hidden_states):
+    #     forwarded_states = self.layer_norm(hidden_states)
+    #     forwarded_states = self.DenseReluDense(forwarded_states)
+    #     hidden_states = hidden_states + self.dropout(forwarded_states)
+    #     return hidden_states
+
+    # def forward(self, hidden_states):
+    #     # many t5/mt5 models are trained in bfloat16 and don't do well under mixed precision (fp16).
+    #     # It appears that it's enough to disable autocast for this FF layer to avoid inf/nan
+    #     # problems for the whole model
+    #     if torch.is_autocast_enabled():
+    #         with torch.cuda.amp.autocast(enabled=False):
+    #             return self._forward(hidden_states)
+    #     else:
+    #         return self._forward(hidden_states)
 
 
 class T5Attention(nn.Module):
@@ -1783,10 +1803,11 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             else:
                 loss_fct = CrossEntropyLoss(ignore_index=-100)
             loss = loss_fct(lm_logits.view(-1, lm_logits.size(-1)), labels.view(-1))
-
+            
             nll_loss = loss.view(labels.size())  # log likelihood
             target_mask = (labels != -100)
             # target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
+            # nll_loss = (nll_loss * target_mask).sum() / target_mask.sum().float()
             nll_loss = (nll_loss * target_mask).sum(1).mean()
             # TODO(thom): Add z_loss https://github.com/tensorflow/mesh/blob/fa19d69eafc9a482aff0b59ddd96b025c0cb207d/mesh_tensorflow/layers.py#L666
 
@@ -1796,10 +1817,12 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
                     loss = self._compute_entropy_loss(loss, labels)
                 elif getattr(self.config, 'loss_option', 'none') in ['consistency', 'consistency_pseudo_train']:
                     loss = self._compute_consistency_loss(lm_logits, labels)
+
                     if self.is_true_answer_state > 0:
                         loss = loss + self.config.pseudo_train_loss_weight * self.is_true_answer_state * nll_loss
                 elif getattr(self.config, 'loss_option', 'none') == 'pseudo_train':
                     loss = self.is_true_answer_state * nll_loss
+
                 elif getattr(self.config, 'loss_option', 'none') == 'token_level_entropy':
                     loss = self._compute_token_level_entropy_loss(lm_logits, labels)
                 else:
@@ -1832,6 +1855,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         )
 
     def _compute_consistency_loss(self, lm_logits, labels):
+
         # [batch, length]
         target_mask = (labels != -100)
         # target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
@@ -1860,7 +1884,8 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
                 lprobs_avg = lprobs_avg.detach()
 
             lprobs_avg = lprobs_avg.unsqueeze(1).expand(bsz, random_n_prompts, length, vsz)
-            loss = F.kl_div(lprobs_avg, lprobs, reduction='sum', log_target=True) / total_tokens
+            # loss = F.kl_div(lprobs_avg, lprobs, reduction='sum', log_target=True) / total_tokens
+            loss = F.kl_div(lprobs_avg, lprobs, reduction='sum', log_target=True)
         else:
             # KL (M || Pi): reverse JSD
             if self.config.detach_kl_left:

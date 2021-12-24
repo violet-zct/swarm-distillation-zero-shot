@@ -154,7 +154,7 @@ class ZeroShotClassificationPipeline(Pipeline):
         **kwargs,
     ):
         """
-        Classify the sequence(s) given as inputs. See the :obj:`~transformers.ZeroShotClassificationPipeline`
+        Classify the sequence(s) given as inputs. See the :class:`~transformers.ZeroShotClassificationPipeline`
         documentation for more information.
 
         Args:
@@ -183,6 +183,9 @@ class ZeroShotClassificationPipeline(Pipeline):
             - **labels** (:obj:`List[str]`) -- The labels sorted by order of likelihood.
             - **scores** (:obj:`List[float]`) -- The probabilities for each of the labels.
         """
+        if kwargs.get("batch_size", 1) > 1:
+            logger.error("Batch size > 1 is not supported for zero-shot pipeline, setting batch_size=1.")
+            kwargs["batch_size"] = 1
 
         if len(args) == 0:
             pass

@@ -25,7 +25,7 @@ import torch
 
 from transformers import Wav2Vec2ForPreTraining
 from transformers.file_utils import is_apex_available
-from transformers.testing_utils import TestCasePlus, get_gpu_count, slow, torch_device
+from transformers.testing_utils import CaptureLogger, TestCasePlus, get_gpu_count, slow, torch_device
 
 
 SRC_DIRS = [
@@ -57,6 +57,7 @@ if SRC_DIRS is not None:
     import run_mlm
     import run_ner
     import run_qa as run_squad
+    import run_seq2seq_qa as run_squad_seq2seq
     import run_speech_recognition_ctc
     import run_summarization
     import run_swag
@@ -156,6 +157,31 @@ class ExamplesTests(TestCasePlus):
             result = get_results(tmp_dir)
             self.assertLess(result["perplexity"], 100)
 
+    def test_run_clm_config_overrides(self):
+        # test that config_overrides works, despite the misleading dumps of default un-updated
+        # config via tokenizer
+
+        tmp_dir = self.get_auto_remove_tmp_dir()
+        testargs = f"""
+            run_clm.py
+            --model_type gpt2
+            --tokenizer_name gpt2
+            --train_file ./tests/fixtures/sample_text.txt
+            --output_dir {tmp_dir}
+            --config_overrides n_embd=10,n_head=2
+            """.split()
+
+        if torch_device != "cuda":
+            testargs.append("--no_cuda")
+
+        logger = run_clm.logger
+        with patch.object(sys, "argv", testargs):
+            with CaptureLogger(logger) as cl:
+                run_clm.main()
+
+        self.assertIn('"n_embd": 10', cl.out)
+        self.assertIn('"n_head": 2', cl.out)
+
     def test_run_mlm(self):
         stream_handler = logging.StreamHandler(sys.stdout)
         logger.addHandler(stream_handler)
@@ -240,6 +266,38 @@ class ExamplesTests(TestCasePlus):
 
         with patch.object(sys, "argv", testargs):
             run_squad.main()
+            result = get_results(tmp_dir)
+            self.assertGreaterEqual(result["eval_f1"], 30)
+            self.assertGreaterEqual(result["eval_exact"], 30)
+
+    def test_run_squad_seq2seq(self):
+        stream_handler = logging.StreamHandler(sys.stdout)
+        logger.addHandler(stream_handler)
+
+        tmp_dir = self.get_auto_remove_tmp_dir()
+        testargs = f"""
+            run_seq2seq_qa.py
+            --model_name_or_path t5-small
+            --context_column context
+            --question_column question
+            --answer_column answers
+            --version_2_with_negative
+            --train_file tests/fixtures/tests_samples/SQUAD/sample.json
+            --validation_file tests/fixtures/tests_samples/SQUAD/sample.json
+            --output_dir {tmp_dir}
+            --overwrite_output_dir
+            --max_steps=10
+            --warmup_steps=2
+            --do_train
+            --do_eval
+            --learning_rate=2e-4
+            --per_device_train_batch_size=2
+            --per_device_eval_batch_size=1
+            --predict_with_generate
+        """.split()
+
+        with patch.object(sys, "argv", testargs):
+            run_squad_seq2seq.main()
             result = get_results(tmp_dir)
             self.assertGreaterEqual(result["eval_f1"], 30)
             self.assertGreaterEqual(result["eval_exact"], 30)

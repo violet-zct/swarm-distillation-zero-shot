@@ -40,7 +40,7 @@ class FillMaskPipeline(Pipeline):
 
     The models that this pipeline can use are models that have been trained with a masked language modeling objective,
     which includes the bi-directional models in the library. See the up-to-date list of available models on
-    `huggingface.co/models <https://huggingface.co/models?filter=masked-lm>`__.
+    `huggingface.co/models <https://huggingface.co/models?filter=fill-mask>`__.
 
     .. note::
 
@@ -89,14 +89,14 @@ class FillMaskPipeline(Pipeline):
 
     def _forward(self, model_inputs):
         model_outputs = self.model(**model_inputs)
-        model_outputs["input_ids"] = model_inputs["input_ids"][0]
+        model_outputs["input_ids"] = model_inputs["input_ids"]
         return model_outputs
 
     def postprocess(self, model_outputs, top_k=5, target_ids=None):
         # Cap top_k if there are targets
         if target_ids is not None and target_ids.shape[0] < top_k:
             top_k = target_ids.shape[0]
-        input_ids = model_outputs["input_ids"]
+        input_ids = model_outputs["input_ids"][0]
         outputs = model_outputs["logits"]
         result = []
 
