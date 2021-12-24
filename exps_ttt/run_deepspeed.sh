@@ -12,7 +12,7 @@
 
 module load gcc/8.3.0
 module load vim tmux cuda/11.1-1
-source activate tride
+source activate ttt
 
 # tir cluster
 export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
@@ -97,7 +97,7 @@ fi
 bsz=1
 ga=16
 nprompts=10
-eval_bsz=50
+eval_bsz=100  # not sure about 11B
 
 peft="lora"
 pL=1
@@ -127,8 +127,9 @@ detach_kl_right=0
 ensemble='avg_prob'  # avg_prob, marjority_vote
 pseudo_weight=1.0
 pseudo_dist="smooth" # smooth (marginalized self-training), argmax
+split_answer=1  # 0 for use buggy L1 or only use L2
 
-exp_name=${test_mode}.train.source.${train_data}.${dataset}.${subset}.${testset_name}.${model}.peft.${peft}.bn${pL}.lopt.${loss_opt}.pd.${pseudo_dist}.ens.${ensemble}.sg${sg}.pw${pseudo_weight}.np${nprompts}.bsz${bsz}.ga${ga}.lr${lr}.steps.${max_steps}
+exp_name=${test_mode}.train.source.${train_data}.${dataset}.${subset}.${testset_name}.${model}.peft.${peft}.bn${pL}.sepa${split_answer}.lopt.${loss_opt}.pd.${pseudo_dist}.ens.${ensemble}.sg${sg}.pw${pseudo_weight}.np${nprompts}.bsz${bsz}.ga${ga}.lr${lr}.steps.${max_steps}
 SAVE=checkpoints/${dname}/${exp_name}_${DATE}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 cp ${0} ${SAVE}/run.sh
@@ -154,7 +155,7 @@ deepspeed examples/pytorch/t0-zero-shot/run_t0.py \
   --ensemble_option ${ensemble}  --pseudo_train_loss_weight ${pseudo_weight} --pseudo_dist ${pseudo_dist} \
   --lora_dropout 0.1 --lora_alpha 4 --lora_pos ${lora_pos} \
   --prob_temperature ${temp} --combine_option ${copt} \
-  --train_random_n_prompts ${nprompts} --train_data_source ${train_data} \
+  --train_random_n_prompts ${nprompts} --train_data_source ${train_data} --split_answer_groups ${split_answer} \
   --save_strategy "no" --warmup_steps 100 --gradient_accumulation_steps ${ga} \
   --lr_scheduler_type ${lr_scheduler_type} \
   --output_dir ${SAVE} --overwrite_output_dir --report_to "none" \

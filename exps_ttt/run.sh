@@ -12,7 +12,7 @@
 
 module load gcc/8.3.0
 module load vim tmux cuda/11.1-1
-source activate tride
+source activate ttt
 
 # tir cluster
 export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface

@@ -36,7 +36,7 @@ def chunks(tot, bsz):
     return batches
 
 
-def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16, data_collator, metrics, model_name):
+def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, data_collator, metrics, model_name):
     # print("world size = {}".format(torch.distributed.get_world_size()))
     # ds_engine = deepspeed.init_inference(model, mp_size=torch.distributed.get_world_size(),
     #                                  dtype=torch.half if fp16 else torch.float,
@@ -44,9 +44,9 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, fp16,
     #                                  replace_method='auto')
     # model = ds_engine.module
     fout_name = "results/" + "_".join([data_args.dataset_name, data_args.subset_name, data_args.testset_name, model_name.replace("/", ".")])
+    if "3B" not in model_name:
+        model = model.to(dtype=torch.bfloat16, device=torch.cuda.current_device())
     model.eval()
-    if fp16:
-        model = model.half()
     model = model.to(torch.cuda.current_device())
 
     all_data = []
@@ -201,7 +201,7 @@ def main():
         )
         model.resize_token_embeddings(len(tokenizer))
         batched_evalute_t0(model, tokenizer, test_data, data_args, training_args.per_device_eval_batch_size,
-                           training_args.fp16, data_collator, metrics, model_args.model_name_or_path)
+                        data_collator, metrics, model_args.model_name_or_path)
     elif test_args.test_mode == "ttt_t0" and test_args.train_data_source == 'stream':
         predictions = [[] for _ in range(test_data.num_prompts)]
         avg_ensemble_predictions = []
