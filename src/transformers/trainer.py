@@ -1853,7 +1853,7 @@ class Trainer:
 
                         if self.args.ensemble_option == "avg_prob":
                             ens_pred = avg_ens_pred
-                        elif self.args.ensemble_option == "marjority_vote":
+                        elif self.args.ensemble_option == "majority_vote":
                             ens_pred = vote_ens_pred
                         else:
                             raise ValueError("unknown ensemble: {}".format(self.args.ensemble_option))

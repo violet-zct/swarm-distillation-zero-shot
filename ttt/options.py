@@ -194,7 +194,7 @@ class TestArguments:
 
     ensemble_option: Optional[str] = field(
         default="avg_prob",
-        metadata={"choices": ["avg_prob", "marjority_vote"]}
+        metadata={"choices": ["avg_prob", "majority_vote"]}
     )
 
     split_answer_groups: Optional[int] = field(
