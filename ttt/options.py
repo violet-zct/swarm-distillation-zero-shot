@@ -196,3 +196,8 @@ class TestArguments:
         default="avg_prob",
         metadata={"choices": ["avg_prob", "marjority_vote"]}
     )
+
+    split_answer_groups: Optional[int] = field(
+        default=1,
+        metadata={"help": "if 0, use the buggy version of L1"}
+    )

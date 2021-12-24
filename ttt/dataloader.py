@@ -259,6 +259,8 @@ class TTTOfflineLoopDataset(Dataset):
         self.dev_batches = [(i, i+dev_bsz if i+dev_bsz < tot else tot) for i in range(0, tot, dev_bsz)]
         self.dev_size = len(self.dev_batches)
 
+        self.split_answer_groups = test_args.split_answer_groups
+
     def construct_dataset(self, dataset: DatasetByPrompt):
         all_data = []
         labels = []
@@ -276,12 +278,20 @@ class TTTOfflineLoopDataset(Dataset):
         for bidx1, bidx2 in self.dev_batches:
             results.append(self.dataset[s+bidx1: s+bidx2])
 
-        for pgroup in self.prompt_groups:
+        if self.split_answer_groups:
+            for pgroup in self.prompt_groups:
+                for ans_idx in range(self.num_choices):
+                    if len(pgroup) <= self.random_n_prompts:
+                        results.append([self.dataset[s+pid*self.num_choices+ans_idx] for pid in pgroup])
+                    else:
+                        random_prompts = np.random.choice(pgroup, self.random_n_prompts, replace=False)
+                        results.append([self.dataset[s + pid * self.num_choices + ans_idx] for pid in random_prompts])
+        else:
             for ans_idx in range(self.num_choices):
-                if len(pgroup) <= self.random_n_prompts:
-                    results.append([self.dataset[s+pid*self.num_choices+ans_idx] for pid in pgroup])
+                if self.num_prompts <= self.random_n_prompts:
+                    results.append([self.dataset[s + pid * self.num_choices + ans_idx] for pid in range(len(self.num_prompts))])
                 else:
-                    random_prompts = np.random.choice(pgroup, self.random_n_prompts, replace=False)
+                    random_prompts = np.random.choice(self.num_prompts, self.random_n_prompts, replace=False)
                     results.append([self.dataset[s + pid * self.num_choices + ans_idx] for pid in random_prompts])
         return results
 
