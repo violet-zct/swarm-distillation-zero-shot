@@ -289,7 +289,7 @@ class TTTOfflineLoopDataset(Dataset):
         else:
             for ans_idx in range(self.num_choices):
                 if self.num_prompts <= self.random_n_prompts:
-                    results.append([self.dataset[s + pid * self.num_choices + ans_idx] for pid in range(len(self.num_prompts))])
+                    results.append([self.dataset[s + pid * self.num_choices + ans_idx] for pid in range(self.num_prompts)])
                 else:
                     random_prompts = np.random.choice(self.num_prompts, self.random_n_prompts, replace=False)
                     results.append([self.dataset[s + pid * self.num_choices + ans_idx] for pid in random_prompts])
