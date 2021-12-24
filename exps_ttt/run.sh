@@ -1,7 +1,7 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=ct.exp
+#SBATCH --job-name=exp
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:a40:1
 #SBATCH --mem=50g
@@ -97,7 +97,7 @@ fi
 bsz=1
 ga=16
 nprompts=10
-eval_bsz=50
+eval_bsz=100
 
 peft="lora"
 pL=1
@@ -119,12 +119,12 @@ test_mode="ttt_t0"
 train_data="validation"  # validation, train, stream
 model="T0_3B"
 # consistency, token_level_entropy, entropy, consistency_pseudo_train, pseudo_train
-loss_opt='consistency_pseudo_train'
-loss_opt='pseudo_train'
+loss_opt='consistency_pseudo_train' # L1+L2
+loss_opt='pseudo_train'  # L2
 jsd=0
 detach_kl_left=1
 detach_kl_right=0
-ensemble='avg_prob'  # avg_prob, marjority_vote
+ensemble='avg_prob'  # avg_prob, majority_vote
 pseudo_weight=1.0
 pseudo_dist="smooth" # smooth (marginalized self-training), argmax
 split_answer=1  # 0 for use buggy L1 or only use L2
