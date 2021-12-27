@@ -50,6 +50,7 @@ dname=${datasets[$SLURM_ARRAY_TASK_ID]} # cb, wsc, copa, wic, anli_r1, anli_r2, 
 
 ga=16 # #epochs * #samples/max_steps:control for 50 epochs for low, 16 epochs for medium and 16 for large, upper bound is 24
 max_steps=1000
+eval_steps=50
 metric="accuracy"
 if [ ${dname} = "rte" ]; then
   # 277
@@ -92,7 +93,7 @@ elif [ ${dname} = "winogrande" ]; then
   dataset="winogrande"
   subset="winogrande_xl"
   testset_name="validation"
-  ga=20
+  ga=16
 elif [ ${dname} = "copa" ]; then
   # 100
   dataset="super_glue"
@@ -105,13 +106,12 @@ elif [ ${dname} = "hellaswag" ]; then
   subset="none"
   testset_name="validation"
   max_steps=2000
-  ga=24
+  eval_steps=100
 elif [ ${dname} = "story_cloze" ]; then
   # 1871
   dataset="story_cloze"
   subset="2016"
   testset_name="validation"
-  ga=24
 elif [ ${dname} = "wic" ]; then
   # 637
   dataset="super_glue"
@@ -123,6 +123,7 @@ else
   exit
 fi
 
+seed=42
 bsz=1
 nprompts=5
 eval_bsz=100
@@ -136,7 +137,6 @@ lora_alpha=2
 lr=2e-5
 lr_scheduler_type="polynomial"
 max_epochs=50
-eval_steps=50
 log_steps=10
 debugsize=-1
 
@@ -146,6 +146,7 @@ copt="uniform"
 
 test_mode="ttt_t0"
 train_data="validation"  # validation, train, stream
+train_size=10000
 model="T0_3B"
 # consistency, token_level_entropy, entropy, consistency_pseudo_train, pseudo_train
 loss_opt='consistency_pseudo_train'
@@ -179,6 +180,7 @@ deepspeed --master_addr="192.168.1.1" --master_port=15206 examples/pytorch/t0-ze
   --adam_beta1 0.9 \
   --adam_beta2 0.98 \
   --adam_epsilon 1e-6 \
+  --seed ${seed} --debug_size ${train_size}\
   --learning_rate ${lr} --evaluation_strategy "steps" --eval_steps ${eval_steps} \
   --loss_option ${loss_opt} --jsd ${jsd} --detach_kl_left ${detach_kl_left} --detach_kl_right ${detach_kl_right} \
   --ensemble_option ${ensemble}  --pseudo_train_loss_weight ${pseudo_weight} --pseudo_dist ${pseudo_dist} \

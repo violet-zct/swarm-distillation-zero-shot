@@ -258,8 +258,9 @@ def main():
         print(f'there are {test_data.num_prompts} prompts in total')
         print(f'using {test_args.train_random_n_prompts} prompts  during training')
 
-        data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, split='train') \
-            if test_args.train_data_source == 'train' else test_data
+        data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, split='train', hold_out=test_args.debug_size) \
+            if test_args.train_data_source == 'train' else \
+            DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, hold_out=test_args.debug_size)
         if test_args.loss_option == "entropy":
             train_data = TTTOfflineDataset(data, test_args, test_args.train_random_n_prompts)
         elif test_args.loss_option in ["token_level_divergence", "token_level_entropy"]:
