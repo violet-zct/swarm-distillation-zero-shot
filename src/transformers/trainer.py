@@ -1838,7 +1838,7 @@ class Trainer:
                         model.eval()
                         # import pdb; pdb.set_trace()
                         logprobs, _, _ = self.prediction_step(model, inputs, prediction_loss_only=True)
-                        all_logprobs.extend(logprobs.cpu().numpy())
+                        all_logprobs.extend(logprobs.to(dtype=torch.float32).cpu().numpy())
 
                         total_tokens_ttt += (inputs['labels'] != -100).sum().float()
                         continue

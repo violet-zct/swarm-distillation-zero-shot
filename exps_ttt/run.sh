@@ -5,9 +5,9 @@
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:a40:1
 #SBATCH --mem=50g
-#SBATCH -p isi
+#SBATCH -p gpu
 #SBATCH --cpus-per-task=6
-#SBATCH --time=96:00:00
+#SBATCH --time=48:00:00
 ##SBATCH --array=0
 
 module load gcc/8.3.0
@@ -42,70 +42,100 @@ DATE=`date +%Y%m%d`
 # dataset=story_cloze, subset=2016, not from huggingface datasets, local download
 # dataset=hallaswag
 
-dname="rte" # cb, wsc, copa, wic, anli_r1, anli_r2, anli_r3, winogrande, story_cloze, hellaswag
+#SLURM_ARRAY_TASK_ID=5
+datasets=(wsc winogrande anli_r1 anli_r2 anli_r3 cb rte copa hellaswag story_cloze wic)
+dname=${datasets[$SLURM_ARRAY_TASK_ID]} # cb, wsc, copa, wic, anli_r1, anli_r2, anli_r3, winogrande, story_cloze, hellaswag
 
+#dname="rte" # cb, wsc, copa, wic, anli_r1, anli_r2, anli_r3, winogrande, story_cloze, hellaswagg
+
+ga=16 # #epochs * #samples/max_steps:control for 50 epochs for low, 16 epochs for medium and 16 for large, upper bound is 24
+max_steps=1000
 metric="accuracy"
 if [ ${dname} = "rte" ]; then
+  # 277
   dataset="super_glue"
   subset="rte"
   testset_name="validation"
+  ga=14
 elif [ ${dname} = "cb" ]; then
+  # 57
   dataset="super_glue"
   subset="cb"
   testset_name="validation"
+  ga=3
 elif [ ${dname} = "anli_r1" ]; then
+  # 1000
   dataset="anli"
   subset="none"
   testset_name="dev_r1"
+  ga=16
 elif [ ${dname} = "anli_r2" ]; then
+  # 1000
   dataset="anli"
   subset="none"
   testset_name="dev_r2"
+  ga=16
 elif [ ${dname} = "anli_r3" ]; then
+  # 1200
   dataset="anli"
   subset="none"
   testset_name="dev_r3"
+  ga=19
 elif [ ${dname} = "wsc" ]; then
+  # 104
   dataset="super_glue"
   subset="wsc.fixed"
   testset_name="validation"
+  ga=5
 elif [ ${dname} = "winogrande" ]; then
+  # 1267
   dataset="winogrande"
   subset="winogrande_xl"
   testset_name="validation"
+  ga=20
 elif [ ${dname} = "copa" ]; then
+  # 100
   dataset="super_glue"
   subset="copa"
   testset_name="validation"
+  ga=5
 elif [ ${dname} = "hellaswag" ]; then
+  # 10042
   dataset="hellaswag"
   subset="none"
   testset_name="validation"
+  max_steps=2000
+  ga=24
 elif [ ${dname} = "story_cloze" ]; then
+  # 1871
   dataset="story_cloze"
   subset="2016"
   testset_name="validation"
+  ga=24
 elif [ ${dname} = "wic" ]; then
+  # 637
   dataset="super_glue"
   subset="wic"
   testset_name="validation"
+  ga=10
 else
   echo "wrong dataset name!"
   exit
 fi
 
+#ga=16
 bsz=1
-ga=16
 nprompts=10
 eval_bsz=100
 
 peft="lora"
 pL=1
 lora_pos="encdec"
+lora_dropout=0.3
+lora_alpha=2
 
 lr=2e-5
 lr_scheduler_type="polynomial"
-max_steps=1000
 max_epochs=50
 eval_steps=50
 log_steps=10
@@ -129,7 +159,7 @@ pseudo_weight=1.0
 pseudo_dist="smooth" # smooth (marginalized self-training), argmax
 split_answer=1  # 0 for use buggy L1 or only use L2
 
-exp_name=${test_mode}.train.source.${train_data}.${dataset}.${subset}.${testset_name}.${model}.peft.${peft}.bn${pL}.sepa${split_answer}.lopt.${loss_opt}.pd.${pseudo_dist}.ens.${ensemble}.sg${sg}.pw${pseudo_weight}.np${nprompts}.bsz${bsz}.ga${ga}.lr${lr}.steps.${max_steps}
+exp_name=${test_mode}.train.source.${train_data}.${dataset}.${subset}.${testset_name}.${model}.peft.${peft}.lora_alpha${lora_alpha}.lora_drop${lora_dropout}.bn${pL}.sepa${split_answer}.lopt.${loss_opt}.pd.${pseudo_dist}.ens.${ensemble}.sg${sg}.pw${pseudo_weight}.np${nprompts}.bsz${bsz}.ga${ga}.lr${lr}.steps.${max_steps}
 SAVE=checkpoints/${dname}/${exp_name}_${DATE}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 cp ${0} ${SAVE}/run.sh
@@ -151,7 +181,7 @@ python -u examples/pytorch/t0-zero-shot/run_t0.py \
   --learning_rate ${lr} --evaluation_strategy "steps" --eval_steps ${eval_steps} \
   --loss_option ${loss_opt} --jsd ${jsd} --detach_kl_left ${detach_kl_left} --detach_kl_right ${detach_kl_right} \
   --ensemble_option ${ensemble}  --pseudo_train_loss_weight ${pseudo_weight} --pseudo_dist ${pseudo_dist} \
-  --lora_dropout 0.1 --lora_alpha 4 --lora_pos ${lora_pos} \
+  --lora_dropout ${lora_dropout} --lora_alpha ${lora_alpha} --lora_pos ${lora_pos} \
   --prob_temperature ${temp} --combine_option ${copt} \
   --train_random_n_prompts ${nprompts} --train_data_source ${train_data} --split_answer_groups ${split_answer} \
   --save_strategy "no" --warmup_steps 100 --gradient_accumulation_steps ${ga} \
