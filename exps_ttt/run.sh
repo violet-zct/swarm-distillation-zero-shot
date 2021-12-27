@@ -157,7 +157,7 @@ detach_kl_right=0
 ensemble='avg_prob'  # avg_prob, majority_vote
 pseudo_weight=1.0
 pseudo_dist="smooth" # smooth (marginalized self-training), argmax
-split_answer=1  # 0 for use buggy L1 or only use L2
+split_answer=0  # 0 for use buggy L1 or only use L2
 
 exp_name=${test_mode}.train.source.${train_data}.${dataset}.${subset}.${testset_name}.${model}.peft.${peft}.lora_alpha${lora_alpha}.lora_drop${lora_dropout}.bn${pL}.sepa${split_answer}.lopt.${loss_opt}.pd.${pseudo_dist}.ens.${ensemble}.sg${sg}.pw${pseudo_weight}.np${nprompts}.bsz${bsz}.ga${ga}.lr${lr}.steps.${max_steps}
 SAVE=checkpoints/${dname}/${exp_name}_${DATE}

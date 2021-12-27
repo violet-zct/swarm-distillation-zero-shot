@@ -124,7 +124,7 @@ else
 fi
 
 bsz=1
-nprompts=10
+nprompts=5
 eval_bsz=100
 
 peft="lora"
@@ -156,7 +156,7 @@ detach_kl_right=0
 ensemble='avg_prob'  # avg_prob, marjority_vote
 pseudo_weight=1.0
 pseudo_dist="smooth" # smooth (marginalized self-training), argmax
-split_answer=1  # 0 for use buggy L1 or only use L2
+split_answer=0  # 0 for use buggy L1 or only use L2
 
 exp_name=${test_mode}.train.source.${train_data}.${dataset}.${subset}.${testset_name}.${model}.peft.${peft}.lora_alpha${lora_alpha}.lora_drop${lora_dropout}.bn${pL}.sepa${split_answer}.lopt.${loss_opt}.pd.${pseudo_dist}.ens.${ensemble}.sg${sg}.pw${pseudo_weight}.np${nprompts}.bsz${bsz}.ga${ga}.lr${lr}.steps.${max_steps}
 SAVE=checkpoints/${dname}/${exp_name}_${DATE}
@@ -168,7 +168,7 @@ cp ${0} ${SAVE}/run.sh
 #python -m torch.distributed.launch --nproc_per_node 4
 #CUDA_VISIBLE_DEVICES=0
 # python -u examples/pytorch/t0-zero-shot/run_t0.py \
-deepspeed examples/pytorch/t0-zero-shot/run_t0.py \
+deepspeed --master_addr="192.168.1.1" --master_port=15206 examples/pytorch/t0-zero-shot/run_t0.py \
   --deepspeed deepspeed_configs/ds_config_zero2.json \
   --dataset_name ${dataset} --subset_name ${subset} --prompt_set_name ${dataset} --testset_name ${testset_name} \
   --model_name_or_path ${model} --per_device_train_batch_size ${bsz}  --per_device_eval_batch_size ${eval_bsz} \
