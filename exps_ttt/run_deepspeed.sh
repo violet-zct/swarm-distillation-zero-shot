@@ -135,7 +135,6 @@ lora_alpha=2
 
 lr=2e-5
 lr_scheduler_type="polynomial"
-max_steps=1000
 max_epochs=50
 eval_steps=50
 log_steps=10
