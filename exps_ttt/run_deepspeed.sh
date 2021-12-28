@@ -159,7 +159,11 @@ pseudo_weight=1.0
 pseudo_dist="smooth" # smooth (marginalized self-training), argmax
 split_answer=0  # 0 for use buggy L1 or only use L2
 
-exp_name=11B_${test_mode}.train.source.${train_data}.${dataset}.${subset}.${testset_name}.${model}.peft.${peft}.lora_alpha${lora_alpha}.lora_drop${lora_dropout}.bn${pL}.sepa${split_answer}.lopt.${loss_opt}.pd.${pseudo_dist}.ens.${ensemble}.sg${sg}.pw${pseudo_weight}.np${nprompts}.bsz${bsz}.ga${ga}.lr${lr}.steps.${max_steps}
+disable_eval_mode=1
+pseudo_target_mode="pairwise" # "pairwise", "full_ensemble", "random_ensemble"
+ensemble_subset_size=0.0 # 0 < x < 1, set when pseudo_target_mode=random_ensemble
+
+exp_name=11B_${test_mode}.train.source.${train_data}.${dataset}.${subset}.${testset_name}.${model}.peft.${peft}.lora_alpha${lora_alpha}.lora_drop${lora_dropout}.bn${pL}.sepa${split_answer}.lopt.${loss_opt}.pd.${pseudo_dist}.ens.${ensemble}.deval${disable_eval_mode}.ptm${pseudo_target_mode}.enssubset${ensemble_subset_size}.pw${pseudo_weight}.np${nprompts}.bsz${bsz}.ga${ga}.lr${lr}.steps.${max_steps}
 SAVE=checkpoints/${dname}/${exp_name}_${DATE}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 cp ${0} ${SAVE}/run.sh
@@ -182,6 +186,7 @@ deepspeed --master_addr="192.168.1.1" --master_port=15206 examples/pytorch/t0-ze
   --adam_epsilon 1e-6 \
   --seed ${seed} --debug_size ${train_size}\
   --learning_rate ${lr} --evaluation_strategy "steps" --eval_steps ${eval_steps} \
+  --disable_eval_mode ${disable_eval_mode} --pseudo_target_mode ${pseudo_target_mode} --ensemble_subset_size ${ensemble_subset_size} \
   --loss_option ${loss_opt} --jsd ${jsd} --detach_kl_left ${detach_kl_left} --detach_kl_right ${detach_kl_right} \
   --ensemble_option ${ensemble}  --pseudo_train_loss_weight ${pseudo_weight} --pseudo_dist ${pseudo_dist} \
   --lora_dropout ${lora_dropout} --lora_alpha ${lora_alpha} --lora_pos ${lora_pos} \
