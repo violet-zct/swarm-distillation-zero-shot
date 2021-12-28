@@ -43,7 +43,7 @@ class DatasetByPrompt(Dataset):
 
         if self.hold_out > -1 and len(self.dataset) > self.hold_out:
             selected_data = np.random.choice(len(self.dataset), self.hold_out, replace=False)
-            self.dataset = [self.dataset[sidx] for sidx in selected_data]
+            self.dataset = [self.dataset[int(sidx)] for sidx in selected_data]
 
     @property
     def num_prompts(self):
