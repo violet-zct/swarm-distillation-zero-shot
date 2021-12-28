@@ -258,7 +258,7 @@ def main():
         print(f'there are {test_data.num_prompts} prompts in total')
         print(f'using {test_args.train_random_n_prompts} prompts  during training')
 
-        train_split = data_args.subset_name.replace("dev", "train") if data_args.dataset_name == "anli" else "train"
+        train_split = data_args.testset_name.replace("dev", "train") if data_args.dataset_name == "anli" else "train"
         data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, split=train_split, hold_out=test_args.debug_size) \
             if test_args.train_data_source == 'train' else \
             DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, hold_out=test_args.debug_size)
