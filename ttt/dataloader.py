@@ -42,7 +42,7 @@ class DatasetByPrompt(Dataset):
                                              cache_dir=self.cache_dir)[self.TESTSET_NAME if self.split is None else self.split]
 
         if self.hold_out > -1 and len(self.dataset) > self.hold_out:
-            selected_data = np.random.choice(len(self.dataset), self.hold_out)
+            selected_data = np.random.choice(len(self.dataset), self.hold_out, replace=False)
             self.dataset = [self.dataset[sidx] for sidx in selected_data]
 
     @property
