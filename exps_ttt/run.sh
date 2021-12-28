@@ -184,7 +184,7 @@ python -u examples/pytorch/t0-zero-shot/run_t0.py \
   --adam_epsilon 1e-6 \
   --seed ${seed} --debug_size ${train_size}\
   --learning_rate ${lr} --evaluation_strategy "steps" --eval_steps ${eval_steps} \
-    --disable_eval_mode ${disable_eval_mode} --pseudo_target_mode ${pseudo_target_mode} --ensemble_subset_size ${ensemble_subset_size} \
+  --disable_eval_mode ${disable_eval_mode} --pseudo_target_mode ${pseudo_target_mode} --ensemble_subset_size ${ensemble_subset_size} \
   --loss_option ${loss_opt} --jsd ${jsd} --detach_kl_left ${detach_kl_left} --detach_kl_right ${detach_kl_right} \
   --ensemble_option ${ensemble}  --pseudo_train_loss_weight ${pseudo_weight} --pseudo_dist ${pseudo_dist} \
   --lora_dropout ${lora_dropout} --lora_alpha ${lora_alpha} --lora_pos ${lora_pos} \
