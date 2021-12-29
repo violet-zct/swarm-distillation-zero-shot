@@ -95,7 +95,7 @@ def compute_metrics(logprobs,
         if return_all_prompt_preds and num_examples == 1:
             random_indices = np.random.permutation(len(all_avg_probs))
             avg_probs = [all_avg_probs[ii] for ii in random_indices]
-            vote_probs = [[1 if c == predictions[ii] else 0] for ii in random_indices for c in range(num_targets)]
+            vote_probs = [[1 if c == predictions[ii] else 0 for c in range(num_targets)] for ii in random_indices]
             return [ppt[0] for ppt in predictions], avg_probs, vote_probs
 
         if pseudo_dist == 'argmax':
