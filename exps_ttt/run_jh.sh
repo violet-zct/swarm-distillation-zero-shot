@@ -42,7 +42,7 @@ DATE=`date +%Y%m%d`
 # dataset=story_cloze, subset=2016, not from huggingface datasets, local download
 # dataset=hallaswag
 
-dname="wsc" # cb, wsc, copa, wic, anli_r1, anli_r2, anli_r3, winogrande, story_cloze, hellaswag
+dname="rte" # cb, wsc, copa, wic, anli_r1, anli_r2, anli_r3, winogrande, story_cloze, hellaswag
 
 metric="accuracy"
 if [ ${dname} = "rte" ]; then
@@ -96,8 +96,8 @@ fi
 
 bsz=1
 ga=16
-nprompts=10
-eval_bsz=50
+nprompts=5
+eval_bsz=10
 
 peft="lora"
 pL=1
@@ -108,7 +108,7 @@ lr_scheduler_type="polynomial"
 max_steps=1000
 max_epochs=50
 eval_steps=50
-log_steps=10
+log_steps=1
 debugsize=-1
 
 # used when loss=entropy
@@ -137,7 +137,9 @@ cp ${0} ${SAVE}/run.sh
 #python -u
 #python -m torch.distributed.launch --nproc_per_node 4
 #CUDA_VISIBLE_DEVICES=0
-python -u examples/pytorch/t0-zero-shot/run_t0.py \
+# python -u examples/pytorch/t0-zero-shot/run_t0.py \
+deepspeed --master_addr="192.168.1.1" --master_port=15206 examples/pytorch/t0-zero-shot/run_t0.py \
+  --deepspeed deepspeed_configs/ds_config_zero2.json \
   --dataset_name ${dataset} --subset_name ${subset} --prompt_set_name ${dataset} --testset_name ${testset_name} \
   --model_name_or_path ${model} --per_device_train_batch_size ${bsz}  --per_device_eval_batch_size ${eval_bsz} \
   --test_mode ${test_mode} --cache_dir ${cache_dir} --metric_name ${metric} \
@@ -156,6 +158,5 @@ python -u examples/pytorch/t0-zero-shot/run_t0.py \
   --save_strategy "no" --warmup_steps 100 --gradient_accumulation_steps ${ga} \
   --lr_scheduler_type ${lr_scheduler_type} \
   --output_dir ${SAVE} --overwrite_output_dir --report_to "none" \
-  --bf16 \
   --disable_tqdm "True" 2>&1 | tee ${SAVE}/log.txt
 

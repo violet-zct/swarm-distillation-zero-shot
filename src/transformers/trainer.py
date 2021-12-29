@@ -1840,7 +1840,7 @@ class Trainer:
                         logprobs, _, _ = self.prediction_step(model, inputs, prediction_loss_only=True)
                         all_logprobs.extend(logprobs.to(dtype=torch.float32).cpu().numpy())
 
-                        total_tokens_ttt += (inputs['labels'] != -100).sum().float()
+                    #     total_tokens_ttt += (inputs['labels'] != -100).sum().float()
                         continue
 
                     if inner_step == self.train_dataset.dev_size:
@@ -1861,11 +1861,12 @@ class Trainer:
                         model = self._wrap_model(self.model)
                         self.is_in_train = True
 
-                    assert ens_pred is not None
+                    # assert ens_pred is not None
                     # is_ensemble_answer = ((inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices == ens_pred)
                     # is_ensemble_answer = is_ensemble_answer and self.args.loss_option in ["consistency_pseudo_train", "pseudo_train"]
                     # import pdb; pdb.set_trace()
 
+                    inputs['is_true_answer_state'] = 0
                     if self.args.loss_option in ["consistency_pseudo_train", "pseudo_train"]:
                         is_ensemble_answer = ens_pred[(inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices]
                     else:
@@ -1878,7 +1879,7 @@ class Trainer:
                         # bsz > 1, is_true_answer: loss 1 + loss 2
                         # bsz > 1, not is_true_answer: loss 1
                         # bsz = 1, is_true_answer: loss 2
-                        model.is_true_answer_state = is_ensemble_answer
+                        inputs['is_true_answer_state'] = is_ensemble_answer
 
 
                     if (
@@ -2408,7 +2409,7 @@ class Trainer:
 
         return ctx_manager
 
-    def training_step(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]], inner_steps=None, scale=1.0) -> torch.Tensor:
+    def training_step(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]], inner_steps=None) -> torch.Tensor:
         """
         Perform a training step on a batch of inputs.
 
@@ -2436,6 +2437,8 @@ class Trainer:
 
         with self.autocast_smart_context_manager():
             loss = self.compute_loss(model, inputs)
+
+        logger.info(f'loss: {loss}')
 
         if self.args.n_gpu > 1:
             loss = loss.mean()  # mean() to average on multi-gpu parallel training
