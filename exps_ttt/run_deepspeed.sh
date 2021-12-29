@@ -53,67 +53,67 @@ max_steps=1000
 eval_steps=50
 metric="accuracy"
 if [ ${dname} = "rte" ]; then
-  # 277
+  # 277, 2490
   dataset="super_glue"
   subset="rte"
   testset_name="validation"
 #  ga=14
 elif [ ${dname} = "cb" ]; then
-  # 57
+  # 57, 250
   dataset="super_glue"
   subset="cb"
   testset_name="validation"
 #  ga=3
 elif [ ${dname} = "anli_r1" ]; then
-  # 1000
+  # 1000, 16946
   dataset="anli"
   subset="none"
   testset_name="dev_r1"
 #  ga=16
 elif [ ${dname} = "anli_r2" ]; then
-  # 1000
+  # 1000, 45460
   dataset="anli"
   subset="none"
   testset_name="dev_r2"
 #  ga=16
 elif [ ${dname} = "anli_r3" ]; then
-  # 1200
+  # 1200, 100459
   dataset="anli"
   subset="none"
   testset_name="dev_r3"
 #  ga=19
 elif [ ${dname} = "wsc" ]; then
-  # 104
+  # 104, 554
   dataset="super_glue"
   subset="wsc.fixed"
   testset_name="validation"
 #  ga=5
 elif [ ${dname} = "winogrande" ]; then
-  # 1267
+  # 1267, 40398
   dataset="winogrande"
   subset="winogrande_xl"
   testset_name="validation"
 #  ga=16
 elif [ ${dname} = "copa" ]; then
-  # 100
+  # 100, 400
   dataset="super_glue"
   subset="copa"
   testset_name="validation"
 #  ga=5
 elif [ ${dname} = "hellaswag" ]; then
-  # 10042
+  # 10042, 39905
   dataset="hellaswag"
   subset="none"
   testset_name="validation"
   max_steps=2000
   eval_steps=100
 elif [ ${dname} = "story_cloze" ]; then
-  # 1871
+  # 1871, no train
   dataset="story_cloze"
   subset="2016"
   testset_name="validation"
 elif [ ${dname} = "wic" ]; then
-  # 637
+  # 637, 5428
   dataset="super_glue"
   subset="wic"
   testset_name="validation"
@@ -132,7 +132,7 @@ peft="lora"
 pL=1
 lora_pos="encdec"
 lora_dropout=0.3
-lora_alpha=2
+lora_alpha=4
 
 lr=2e-5
 lr_scheduler_type="polynomial"
@@ -159,7 +159,7 @@ pseudo_weight=1.0
 pseudo_dist="smooth" # smooth (marginalized self-training), argmax
 split_answer=0  # 0 for use buggy L1 or only use L2
 
-disable_eval_mode=1
+disable_eval_mode=0
 pseudo_target_mode="pairwise" # "pairwise", "full_ensemble", "random_ensemble"
 ensemble_subset_size=0.0 # 0 < x < 1, set when pseudo_target_mode=random_ensemble
 
