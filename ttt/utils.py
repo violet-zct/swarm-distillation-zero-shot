@@ -79,7 +79,7 @@ def compute_metrics(logprobs,
             predictions[pidx].append(pred_label)
 
         if 0.0 < random_selection_ensemble < 1.0 and num_examples == 1:
-            selected_prompts = np.random.permutation(num_prompts)[:int(len(num_prompts) * random_selection_ensemble)]
+            selected_prompts = np.random.permutation(num_prompts)[:int(num_prompts * random_selection_ensemble)]
             avg_probs = np.sum([all_avg_probs[jj] for jj in selected_prompts]) / len(selected_prompts)
             all_preds = [predictions[jj][-1] for jj in selected_prompts]
         else:
