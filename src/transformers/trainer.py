@@ -1835,7 +1835,6 @@ class Trainer:
                 total_inner_steps = len(list_of_inputs) - self.train_dataset.dev_size
                 total_tokens_ttt = 0
                 seen_prompts = 0
-                prev_prompt_batch = 0
 
                 for inner_step, inputs in enumerate(list_of_inputs):
                     if inner_step < self.train_dataset.dev_size:
@@ -1872,12 +1871,12 @@ class Trainer:
                         last_prompt_batch = ((inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices) == (self.train_dataset.num_choices-1)
                         cur_prompt_num = inputs["input_ids"].size(0)
                         ans_id = (inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices
-                        if last_prompt_batch:
-                            seen_prompts += cur_prompt_num
                         if self.args.loss_option in ["consistency_pseudo_train", "pseudo_train"]:
                             is_ensemble_answer = [pred[ans_id] for pred in ens_pred[seen_prompts:seen_prompts+cur_prompt_num]]
                         else:
                             is_ensemble_answer = -1
+                        if last_prompt_batch:
+                            seen_prompts += cur_prompt_num
                     else:
                         if self.args.loss_option in ["consistency_pseudo_train", "pseudo_train"]:
                             is_ensemble_answer = ens_pred[(inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices]

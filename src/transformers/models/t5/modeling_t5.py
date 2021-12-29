@@ -1818,6 +1818,8 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             nll_loss = (nll_loss * pseudo_dists).mean()
         elif self.is_true_answer_state > 0:
             nll_loss = self.is_true_answer_state * nll_loss.mean()
+        
+        self.is_true_answer_state = -1
 
         if hasattr(self.config, "test_mode"):
             if getattr(self.config, 'test_mode', 'none') == 'ttt_t0' and self.training:
