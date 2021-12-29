@@ -1804,25 +1804,32 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
                 loss_fct = CrossEntropyLoss(ignore_index=-100)
             loss = loss_fct(lm_logits.view(-1, lm_logits.size(-1)), labels.view(-1))
             
+            # [batch, length]
             nll_loss = loss.view(labels.size())  # log likelihood
             target_mask = (labels != -100)
             # target_mask = target_mask.logical_and(labels != self.config.eos_token_id)
             # nll_loss = (nll_loss * target_mask).sum() / target_mask.sum().float()
-            nll_loss = (nll_loss * target_mask).sum(1).mean()
+            # [batch]
+            nll_loss = (nll_loss * target_mask).sum(1)
             # TODO(thom): Add z_loss https://github.com/tensorflow/mesh/blob/fa19d69eafc9a482aff0b59ddd96b025c0cb207d/mesh_tensorflow/layers.py#L666
+
+        if isinstance(self.is_true_answer_state, list):
+            pseudo_dists = torch.tensor(self.is_true_answer_state, device=nll_loss.device, dtype=nll_loss.dtype)
+            nll_loss = (nll_loss * pseudo_dists).mean()
+        elif self.is_true_answer_state > 0:
+            nll_loss = self.is_true_answer_state * nll_loss.mean()
 
         if hasattr(self.config, "test_mode"):
             if getattr(self.config, 'test_mode', 'none') == 'ttt_t0' and self.training:
                 if getattr(self.config, 'loss_option', 'none') == 'entropy':
                     loss = self._compute_entropy_loss(loss, labels)
-                elif getattr(self.config, 'loss_option', 'none') in ['consistency', 'consistency_pseudo_train']:
+                elif getattr(self.config, 'loss_option', 'none') == 'consistency':
                     loss = self._compute_consistency_loss(lm_logits, labels)
-
-                    if self.is_true_answer_state > 0:
-                        loss = loss + self.config.pseudo_train_loss_weight * self.is_true_answer_state * nll_loss
+                elif getattr(self.config, 'loss_option', 'none') == 'consistency_pseudo_train':
+                    loss = self._compute_consistency_loss(lm_logits, labels)
+                    loss = loss + self.config.pseudo_train_loss_weight * nll_loss
                 elif getattr(self.config, 'loss_option', 'none') == 'pseudo_train':
-                    loss = self.is_true_answer_state * nll_loss
-
+                    loss = nll_loss
                 elif getattr(self.config, 'loss_option', 'none') == 'token_level_entropy':
                     loss = self._compute_token_level_entropy_loss(lm_logits, labels)
                 else:

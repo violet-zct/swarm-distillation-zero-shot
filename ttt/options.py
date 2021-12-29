@@ -215,7 +215,7 @@ class TestArguments:
     )
 
     ensemble_subset_size: Optional[float] = field(
-        default=0.0,
+        default=-1.0,
         metadata={"help": "<1, > 0, set when pseudo_target_mode=random_ensemble, "
                           "use this ratio of prompts to compute ensemble"}
     )
