@@ -57,49 +57,49 @@ if [ ${dname} = "rte" ]; then
   dataset="super_glue"
   subset="rte"
   testset_name="validation"
-  ga=14
+#  ga=14
 elif [ ${dname} = "cb" ]; then
   # 57
   dataset="super_glue"
   subset="cb"
   testset_name="validation"
-  ga=3
+#  ga=3
 elif [ ${dname} = "anli_r1" ]; then
   # 1000
   dataset="anli"
   subset="none"
   testset_name="dev_r1"
-  ga=16
+#  ga=16
 elif [ ${dname} = "anli_r2" ]; then
   # 1000
   dataset="anli"
   subset="none"
   testset_name="dev_r2"
-  ga=16
+#  ga=16
 elif [ ${dname} = "anli_r3" ]; then
   # 1200
   dataset="anli"
   subset="none"
   testset_name="dev_r3"
-  ga=19
+#  ga=19
 elif [ ${dname} = "wsc" ]; then
   # 104
   dataset="super_glue"
   subset="wsc.fixed"
   testset_name="validation"
-  ga=5
+#  ga=5
 elif [ ${dname} = "winogrande" ]; then
   # 1267
   dataset="winogrande"
   subset="winogrande_xl"
   testset_name="validation"
-  ga=16
+#  ga=16
 elif [ ${dname} = "copa" ]; then
   # 100
   dataset="super_glue"
   subset="copa"
   testset_name="validation"
-  ga=5
+#  ga=5
 elif [ ${dname} = "hellaswag" ]; then
   # 10042
   dataset="hellaswag"
@@ -117,7 +117,7 @@ elif [ ${dname} = "wic" ]; then
   dataset="super_glue"
   subset="wic"
   testset_name="validation"
-  ga=10
+#  ga=10
 else
   echo "wrong dataset name!"
   exit
