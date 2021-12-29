@@ -1804,7 +1804,6 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             else:
                 loss_fct = CrossEntropyLoss(ignore_index=-100)
             loss = loss_fct(lm_logits.view(-1, lm_logits.size(-1)), labels.view(-1))
-            logger.info(f"t5 nll loss loss {loss}")
 
             nll_loss = loss.view(labels.size())  # log likelihood
             target_mask = (labels != -100)
@@ -1814,8 +1813,6 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             # TODO(thom): Add z_loss https://github.com/tensorflow/mesh/blob/fa19d69eafc9a482aff0b59ddd96b025c0cb207d/mesh_tensorflow/layers.py#L666
 
 
-        logger.info(f"t5 nll loss {nll_loss}")
-        logger.info(f"t5 nll loss nan: {nll_loss.isnan().any()}")
         if hasattr(self.config, "test_mode"):
             if getattr(self.config, 'test_mode', 'none') == 'ttt_t0' and self.training:
                 if getattr(self.config, 'loss_option', 'none') == 'entropy':
@@ -1827,8 +1824,6 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
                         loss = loss + self.config.pseudo_train_loss_weight * is_true_answer_state * nll_loss
                 elif getattr(self.config, 'loss_option', 'none') == 'pseudo_train':
                     loss = is_true_answer_state * nll_loss
-                    logger.info(f"t5 return loss {loss}")
-                    logger.info(f"t5 true answer state {is_true_answer_state}")
 
                 elif getattr(self.config, 'loss_option', 'none') == 'token_level_entropy':
                     loss = self._compute_token_level_entropy_loss(lm_logits, labels)

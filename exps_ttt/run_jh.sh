@@ -158,5 +158,6 @@ deepspeed --master_addr="192.168.1.1" --master_port=15206 examples/pytorch/t0-ze
   --save_strategy "no" --warmup_steps 100 --gradient_accumulation_steps ${ga} \
   --lr_scheduler_type ${lr_scheduler_type} \
   --output_dir ${SAVE} --overwrite_output_dir --report_to "none" \
+  --bf16 \
   --disable_tqdm "True" 2>&1 | tee ${SAVE}/log.txt
 
