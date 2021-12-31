@@ -65,6 +65,11 @@ class DataArguments:
         metadata={"help": ""}
     )
 
+    cb_surgery: Optional[int] = field(
+        default=1,
+        metadata={"help": ""}
+    )
+
 @dataclass
 class TestArguments:
     test_mode: str = field(

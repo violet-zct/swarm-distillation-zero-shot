@@ -22,6 +22,7 @@ class DatasetByPrompt(Dataset):
         self.PROMPTSET_NAME = args.prompt_set_name  # has subset name?
         self.task_type = args.task_type
         self.hold_out = hold_out
+        self.cb_surgery = args.cb_surgery
         self.load()
 
         self.tokenizer = tokenizer
@@ -112,7 +113,10 @@ class DatasetByPrompt(Dataset):
                             invalid_names.append(pname)
                             break
         invalid_names = set(invalid_names)
-        return [name for name in all_prompt_names if self.prompts[name].metadata.original_task and name not in invalid_names]
+        prompt_names = [name for name in all_prompt_names if self.prompts[name].metadata.original_task and name not in invalid_names]
+        if self.SUBSET_NAME == "cb" and self.cb_surgery:
+            return [name for ii, name in enumerate(prompt_names) if ii != 1 and ii != 10]
+        return prompt_names
 
 
 class TTTOnlineDataset(Dataset):
