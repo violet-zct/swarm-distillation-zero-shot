@@ -99,6 +99,11 @@ class TestArguments:
         metadata={"help": ""},
     )
 
+    max_dev_size: Optional[int] = field(
+        default=1000,
+        metadata={"help": "maximum number of examples for unsupervised dev metric"},
+    )
+
     metric_name: Optional[str] = field(
         default="none",
     )

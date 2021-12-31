@@ -138,6 +138,7 @@ lr_scheduler_type="polynomial"
 max_epochs=50
 log_steps=10
 debugsize=-1
+max_dev_size=1000
 
 # used when loss=entropy
 temp=1.0
@@ -184,7 +185,7 @@ python -u examples/pytorch/t0-zero-shot/run_t0.py \
   --adam_beta1 0.9 \
   --adam_beta2 0.98 \
   --adam_epsilon 1e-6 \
-  --seed ${seed} --debug_size ${train_size}\
+  --seed ${seed} --debug_size ${train_size} --max_dev_size ${max_dev_size}\
   --learning_rate ${lr} --evaluation_strategy "steps" --eval_steps ${eval_steps} \
   --disable_eval_mode ${disable_eval_mode} --pseudo_target_mode ${pseudo_target_mode} --ensemble_subset_size ${ensemble_subset_size} \
   --loss_option ${loss_opt} --jsd ${jsd} --detach_kl_left ${detach_kl_left} --detach_kl_right ${detach_kl_right} \

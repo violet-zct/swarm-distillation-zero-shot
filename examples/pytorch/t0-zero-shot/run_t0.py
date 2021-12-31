@@ -272,12 +272,19 @@ def main():
         else:
             raise NotImplementedError
         # import pdb; pdb.set_trace()
+        dev_data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, split=train_split, hold_out=test_args.max_dev_size,
+            random_hold_out=False) \
+            if test_args.train_data_source == 'train' else \
+            DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, hold_out=test_args.max_dev_size, random_hold_out=False)
+
+        dev_set = TTTEvalDataset(dev_data)
         test_set = TTTEvalDataset(test_data)
         print(f'prompt groups {train_data.prompt_groups}')
 
         trainer = Trainer(
             model=model,
             train_dataset=train_data,
+            dev_dataset=dev_set,
             eval_dataset=test_set,
             args=training_args,
             tokenizer=tokenizer,
@@ -286,6 +293,11 @@ def main():
             compute_metrics=compute_metrics,  # todo: add metrics
             additional_metrics=metrics,
         )
+
+        # do evaluation first before training to collect initial predictions
+        print('run evaluation first to collect initial predictions')
+        eval_results = trainer.evaluate(eval_dataset=dev_set) 
+
         if test_args.loss_option in ["consistency", "pseudo_train", "consistency_pseudo_train"]:
             trainer.train_ttt(resume_from_checkpoint=None)
         else:

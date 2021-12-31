@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class DatasetByPrompt(Dataset):
     # used for test, maybe need to extend this class for open-ended generation tasks
-    def __init__(self, args, cache_dir, tokenizer, split=None, hold_out=-1):
+    def __init__(self, args, cache_dir, tokenizer, split=None, hold_out=-1, random_hold_out=True):
         super().__init__()
         self.cache_dir = cache_dir
 
@@ -22,6 +22,7 @@ class DatasetByPrompt(Dataset):
         self.PROMPTSET_NAME = args.prompt_set_name  # has subset name?
         self.task_type = args.task_type
         self.hold_out = hold_out
+        self.random_hold_out = random_hold_out
         self.load()
 
         self.tokenizer = tokenizer
@@ -42,7 +43,8 @@ class DatasetByPrompt(Dataset):
                                              cache_dir=self.cache_dir)[self.TESTSET_NAME if self.split is None else self.split]
 
         if self.hold_out > -1 and len(self.dataset) > self.hold_out:
-            selected_data = np.random.choice(len(self.dataset), self.hold_out, replace=False)
+            selected_data = np.random.choice(len(self.dataset), self.hold_out, replace=False) if self.random_hold_out \
+                else range(self.hold_out)
             self.dataset = [self.dataset[int(sidx)] for sidx in selected_data]
 
     @property

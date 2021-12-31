@@ -280,10 +280,12 @@ class Trainer:
         args: TrainingArguments = None,
         data_collator: Optional[DataCollator] = None,
         train_dataset: Optional[Dataset] = None,
+        dev_dataset: Optional[Dataset] = None,
         eval_dataset: Optional[Dataset] = None,
         tokenizer: Optional[PreTrainedTokenizerBase] = None,
         model_init: Callable[[], PreTrainedModel] = None,
         compute_metrics: Optional[Callable[[EvalPrediction], Dict]] = None,
+        compute_unsupervised_metrics: Optional[Callable[[EvalPrediction], Dict]] = None,
         callbacks: Optional[List[TrainerCallback]] = None,
         optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (None, None),
         additional_metrics=None,
@@ -376,6 +378,7 @@ class Trainer:
         self.test_data_collator = test_data_collator if test_data_collator is not None else self.data_collator
         self.train_dataset = train_dataset
         self.eval_dataset = eval_dataset
+        self.dev_dataset = dev_dataset
         self.tokenizer = tokenizer
 
         if self.place_model_on_device:
@@ -390,6 +393,7 @@ class Trainer:
         self.model = model
 
         self.compute_metrics = compute_metrics
+        self.compute_unsupervised_metrics = compute_unsupervised_metrics
         self.additional_metrics = additional_metrics
         self.optimizer, self.lr_scheduler = optimizers
         if model_init is not None and (self.optimizer is not None or self.lr_scheduler is not None):
@@ -491,6 +495,11 @@ class Trainer:
         )
         self.label_names = default_label_names if self.args.label_names is None else self.args.label_names
         self.control = self.callback_handler.on_init_end(self.args, self.state, self.control)
+
+
+        # Junxian
+        # store model's initial predictions before optimization
+        self.initial_predictions = []
 
         # very last
         self._memory_tracker.stop_and_update_metrics()
@@ -2084,6 +2093,12 @@ class Trainer:
             metrics = self.evaluate(ignore_keys=ignore_keys_for_eval)
             self._report_to_hp_search(trial, epoch, metrics)
 
+            # Junxian
+            metrics = self.evaluate(eval_dataset=self.dev_dataset,
+                                    metric_key_prefix='unsupervised_dev'
+                                    ignore_keys=ignore_keys_for_eval)
+            self._report_to_hp_search(trial, epoch, metrics)
+
         if self.control.should_save:
             self._save_checkpoint(model, trial, metrics=metrics)
             self.control = self.callback_handler.on_save(self.args, self.state, self.control)
@@ -2737,6 +2752,7 @@ class Trainer:
             ignore_keys=ignore_keys,
             metric_key_prefix=metric_key_prefix,
         )
+
         if hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0':
             self._memory_tracker.stop_and_update_metrics(None)
             return output.predictions
@@ -2981,16 +2997,24 @@ class Trainer:
             all_labels = nested_truncate(all_labels, num_samples)
 
         # Metrics!
-        if self.compute_metrics is not None and hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0':
+        if (self.compute_metrics is not None or self.compute_unsupervised_metrics is not None) \
+             and hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0':
             eval_datasize = 1 if self.args.train_data_source == 'stream' else self.eval_dataset.num_instances
+            compute_metrics = self.compute_metrics if metric_key_prefix != 'unsupervised_dev' else self.compute_unsupervised_metrics
             if self.args.train_data_source == 'stream':
-                preds = self.compute_metrics(all_losses, 1, self.eval_dataset.num_choices, self.eval_dataset.num_prompts)
+                preds, initial_predictions = compute_metrics(all_losses, 1, self.eval_dataset.num_choices, self.eval_dataset.num_prompts)
             else:
-                preds = self.compute_metrics(all_losses, eval_datasize, self.eval_dataset.num_choices,
-                                             self.eval_dataset.num_prompts, self.eval_dataset.gold_labels,
-                                             self.additional_metrics,
-                                             fout_name=self.args.output_dir,
-                                             suffix=f'{self.state.global_step}')
+                preds, initial_predictions = compute_metrics(all_losses, eval_datasize, self.eval_dataset.num_choices,
+                                        self.eval_dataset.num_prompts, self.eval_dataset.gold_labels,
+                                        self.additional_metrics,
+                                        fout_name=self.args.output_dir,
+                                        suffix=f'{self.state.global_step}',
+                                        metric_key_prefix=metric_key_prefix,
+                                        initial_predictions=self.initial_predictions)
+
+                if initial_predictions is not None:
+                    self.initial_predictions = initial_predictions
+
             return EvalLoopOutput(predictions=preds, label_ids=None, metrics=None, num_samples=1)
         elif self.compute_metrics is not None and all_preds is not None and all_labels is not None:
             metrics = self.compute_metrics(EvalPrediction(predictions=all_preds, label_ids=all_labels))
