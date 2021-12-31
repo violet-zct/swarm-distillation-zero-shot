@@ -1827,17 +1827,22 @@ class Trainer:
                 # todo: check me, also deepspeed case
                 ens_pred = None
                 model = self._wrap_model(self.model, training=False)
-                self.is_in_train = False
+                if not self.args.disable_eval_mode:
+                    model.eval()
+                # self.is_in_train = False
                 all_logprobs = []
                 # import pdb; pdb.set_trace()
                 total_inner_steps = len(list_of_inputs) - self.train_dataset.dev_size
                 total_tokens_ttt = 0
+                seen_prompts = 0
 
                 for inner_step, inputs in enumerate(list_of_inputs):
                     if inner_step < self.train_dataset.dev_size:
-                        model.eval()
                         # import pdb; pdb.set_trace()
                         logprobs, _, _ = self.prediction_step(model, inputs, prediction_loss_only=True)
+
+                        # sometimes mix precision causes nan
+                        assert not logprobs.isnan().any()
                         all_logprobs.extend(logprobs.to(dtype=torch.float32).cpu().numpy())
 
                     #     total_tokens_ttt += (inputs['labels'] != -100).sum().float()
@@ -1847,10 +1852,10 @@ class Trainer:
                         _, avg_ens_pred, vote_ens_pred = self.compute_metrics(all_logprobs, 1,
                                                                               self.train_dataset.num_choices,
                                                                               self.train_dataset.num_prompts,
-                                                                              pseudo_dist=self.args.pseudo_dist)
-
-
-
+                                                                              pseudo_dist=self.args.pseudo_dist,
+                                                                              return_all_prompt_preds=self.args.pseudo_target_mode=="pairwise",
+                                                                              random_selection_ensemble=self.args.ensemble_subset_size,)
+                        # import pdb; pdb.set_trace()
                         if self.args.ensemble_option == "avg_prob":
                             ens_pred = avg_ens_pred
                         elif self.args.ensemble_option == "majority_vote":
@@ -1858,21 +1863,32 @@ class Trainer:
                         else:
                             raise ValueError("unknown ensemble: {}".format(self.args.ensemble_option))
 
-                        model = self._wrap_model(self.model)
-                        self.is_in_train = True
+                        model = self._wrap_model(self.model_wrapped,)  # w/o deepspeed, self.model_wrapped = self.model
+                        # self.is_in_train = True
 
-                    # assert ens_pred is not None
+                    assert ens_pred is not None
                     # is_ensemble_answer = ((inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices == ens_pred)
                     # is_ensemble_answer = is_ensemble_answer and self.args.loss_option in ["consistency_pseudo_train", "pseudo_train"]
                     # import pdb; pdb.set_trace()
 
                     inputs['is_true_answer_state'] = 0
-                    if self.args.loss_option in ["consistency_pseudo_train", "pseudo_train"]:
-                        is_ensemble_answer = ens_pred[(inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices]
+                    if self.args.pseudo_target_mode == "pairwise":
+                        last_prompt_batch = ((inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices) == (self.train_dataset.num_choices-1)
+                        cur_prompt_num = inputs["input_ids"].size(0)
+                        ans_id = (inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices
+                        if self.args.loss_option in ["consistency_pseudo_train", "pseudo_train"]:
+                            is_ensemble_answer = [pred[ans_id] for pred in ens_pred[seen_prompts:seen_prompts+cur_prompt_num]]
+                        else:
+                            is_ensemble_answer = -1
+                        if last_prompt_batch:
+                            seen_prompts += cur_prompt_num
                     else:
-                        is_ensemble_answer = -1
+                        if self.args.loss_option in ["consistency_pseudo_train", "pseudo_train"]:
+                            is_ensemble_answer = ens_pred[(inner_step - self.train_dataset.dev_size) % self.train_dataset.num_choices]
+                        else:
+                            is_ensemble_answer = -1
 
-                    if is_ensemble_answer < 1e-9 and inputs["input_ids"].size(0) == 1:
+                    if not isinstance(is_ensemble_answer, list) and is_ensemble_answer < 1e-9 and inputs["input_ids"].size(0) == 1:
                         # bsz = 1, not is_true_answer: skip
                         continue
                     else:
@@ -1880,7 +1896,6 @@ class Trainer:
                         # bsz > 1, not is_true_answer: loss 1
                         # bsz = 1, is_true_answer: loss 2
                         inputs['is_true_answer_state'] = is_ensemble_answer
-
 
                     if (
                             ((step + 1) % args.gradient_accumulation_steps != 0)

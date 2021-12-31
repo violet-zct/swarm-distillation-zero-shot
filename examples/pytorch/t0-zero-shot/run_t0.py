@@ -123,7 +123,7 @@ def main():
     )
 
     if test_args.train_data_source == 'stream':
-        training_args.per_gpu_train_batch_size = test_args.train_random_n_prompts
+        training_args.per_device_train_batch_size = test_args.train_random_n_prompts
 
     # set additional args
     for k, v in vars(test_args).items():
@@ -258,8 +258,10 @@ def main():
         print(f'there are {test_data.num_prompts} prompts in total')
         print(f'using {test_args.train_random_n_prompts} prompts  during training')
 
-        data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, split='train') \
-            if test_args.train_data_source == 'train' else test_data
+        train_split = data_args.testset_name.replace("dev", "train") if data_args.dataset_name == "anli" else "train"
+        data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, split=train_split, hold_out=test_args.debug_size) \
+            if test_args.train_data_source == 'train' else \
+            DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, hold_out=test_args.debug_size)
         if test_args.loss_option == "entropy":
             train_data = TTTOfflineDataset(data, test_args, test_args.train_random_n_prompts)
         elif test_args.loss_option in ["token_level_divergence", "token_level_entropy"]:

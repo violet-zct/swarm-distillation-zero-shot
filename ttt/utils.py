@@ -52,11 +52,14 @@ def compute_metrics(logprobs,
                     metrics=None,
                     fout_name=None,
                     suffix=None,
-                    pseudo_dist="smooth"):
+                    pseudo_dist="smooth",
+                    return_all_prompt_preds=False,
+                    random_selection_ensemble=0.0,):
     predictions = [[] for _ in range(num_prompts)]
     entropies = [[] for _ in range(num_prompts)]
     avg_ensemble_predictions = []
     vote_ensemble_predictions = []
+    all_avg_probs = []
     idx = 0
     for eidx in range(num_examples):
         avg_probs = np.zeros(num_targets)
@@ -72,15 +75,29 @@ def compute_metrics(logprobs,
             normalized_probs = normalized_probs / normalized_probs.sum()
             entropies[pidx].append(-(normalized_probs * np.log(normalized_probs)).sum())
             avg_probs += normalized_probs
+            all_avg_probs.append(normalized_probs)
             predictions[pidx].append(pred_label)
 
-        avg_probs = avg_probs / num_prompts
+        # import pdb; pdb.set_trace()
+        if 0.0 < random_selection_ensemble < 1.0 and num_examples == 1:
+            selected_prompts = np.random.permutation(num_prompts)[:int(num_prompts * random_selection_ensemble)]
+            avg_probs = sum([all_avg_probs[jj] for jj in selected_prompts]) / len(selected_prompts)
+            all_preds = [predictions[jj][-1] for jj in selected_prompts]
+        else:
+            avg_probs = avg_probs / num_prompts
+            all_preds = [ppt[-1] for ppt in predictions]
+
         avg_label = np.argmax(avg_probs)
-        all_preds = [ppt[-1] for ppt in predictions]
         counts = [all_preds.count(ii) + 1 for ii in range(num_targets)]
         vote_label = np.argmax(counts)
         total = float(sum(counts))
         vote_probs = [c / total for c in counts]
+
+        if return_all_prompt_preds and num_examples == 1:
+            random_indices = np.random.permutation(len(all_avg_probs))
+            avg_probs = [all_avg_probs[ii] for ii in random_indices]
+            vote_probs = [[1 if c == predictions[ii][-1] else 0 for c in range(num_targets)] for ii in random_indices]
+            return [ppt[0] for ppt in predictions], avg_probs, vote_probs
 
         if pseudo_dist == 'argmax':
             avg_probs = [1 if c == avg_label else 0 for c in range(num_targets)]

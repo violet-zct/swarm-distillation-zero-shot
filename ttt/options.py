@@ -201,3 +201,21 @@ class TestArguments:
         default=1,
         metadata={"help": "if 0, use the buggy version of L1"}
     )
+
+    disable_eval_mode: Optional[int] = field(
+        default=0,
+        metadata={"help": "if 1, disable eval mode at inference time per train step"}
+    )
+
+    # random ensemble not implemented yet
+    pseudo_target_mode: Optional[str] = field(
+        default="pairwise",
+        metadata={"help": "how to produce the pseudo target",
+                  "choices": ["pairwise", "full_ensemble", "random_ensemble"]}
+    )
+
+    ensemble_subset_size: Optional[float] = field(
+        default=-1.0,
+        metadata={"help": "<1, > 0, set when pseudo_target_mode=random_ensemble, "
+                          "use this ratio of prompts to compute ensemble"}
+    )

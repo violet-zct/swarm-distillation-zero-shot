@@ -50,79 +50,80 @@ dname=${datasets[$SLURM_ARRAY_TASK_ID]} # cb, wsc, copa, wic, anli_r1, anli_r2, 
 
 ga=16 # #epochs * #samples/max_steps:control for 50 epochs for low, 16 epochs for medium and 16 for large, upper bound is 24
 max_steps=1000
+eval_steps=50
 metric="accuracy"
 if [ ${dname} = "rte" ]; then
-  # 277
+  # 277, 2490
   dataset="super_glue"
   subset="rte"
   testset_name="validation"
-  ga=14
+#  ga=14
 elif [ ${dname} = "cb" ]; then
-  # 57
+  # 57, 250
   dataset="super_glue"
   subset="cb"
   testset_name="validation"
-  ga=3
+#  ga=3
 elif [ ${dname} = "anli_r1" ]; then
-  # 1000
+  # 1000, 16946
   dataset="anli"
   subset="none"
   testset_name="dev_r1"
-  ga=16
+#  ga=16
 elif [ ${dname} = "anli_r2" ]; then
-  # 1000
+  # 1000, 45460
   dataset="anli"
   subset="none"
   testset_name="dev_r2"
-  ga=16
+#  ga=16
 elif [ ${dname} = "anli_r3" ]; then
-  # 1200
+  # 1200, 100459
   dataset="anli"
   subset="none"
   testset_name="dev_r3"
-  ga=19
+#  ga=19
 elif [ ${dname} = "wsc" ]; then
-  # 104
+  # 104, 554
   dataset="super_glue"
   subset="wsc.fixed"
   testset_name="validation"
-  ga=5
+#  ga=5
 elif [ ${dname} = "winogrande" ]; then
-  # 1267
+  # 1267, 40398
   dataset="winogrande"
   subset="winogrande_xl"
   testset_name="validation"
-  ga=20
+#  ga=16
 elif [ ${dname} = "copa" ]; then
-  # 100
+  # 100, 400
   dataset="super_glue"
   subset="copa"
   testset_name="validation"
-  ga=5
+#  ga=5
 elif [ ${dname} = "hellaswag" ]; then
-  # 10042
+  # 10042, 39905
   dataset="hellaswag"
   subset="none"
   testset_name="validation"
   max_steps=2000
-  ga=24
+  eval_steps=100
 elif [ ${dname} = "story_cloze" ]; then
-  # 1871
+  # 1871, no train
   dataset="story_cloze"
   subset="2016"
   testset_name="validation"
-  ga=24
 elif [ ${dname} = "wic" ]; then
-  # 637
+  # 637, 5428
   dataset="super_glue"
   subset="wic"
   testset_name="validation"
-  ga=10
+#  ga=10
 else
   echo "wrong dataset name!"
   exit
 fi
 
+seed=42
 bsz=1
 nprompts=5
 eval_bsz=100
@@ -131,12 +132,11 @@ peft="lora"
 pL=1
 lora_pos="encdec"
 lora_dropout=0.3
-lora_alpha=2
+lora_alpha=4
 
 lr=2e-5
 lr_scheduler_type="polynomial"
 max_epochs=50
-eval_steps=50
 log_steps=10
 debugsize=-1
 
@@ -146,6 +146,7 @@ copt="uniform"
 
 test_mode="ttt_t0"
 train_data="validation"  # validation, train, stream
+train_size=10000
 model="T0_3B"
 # consistency, token_level_entropy, entropy, consistency_pseudo_train, pseudo_train
 loss_opt='consistency_pseudo_train'
@@ -158,7 +159,11 @@ pseudo_weight=1.0
 pseudo_dist="smooth" # smooth (marginalized self-training), argmax
 split_answer=0  # 0 for use buggy L1 or only use L2
 
-exp_name=${test_mode}.train.source.${train_data}.${dataset}.${subset}.${testset_name}.${model}.peft.${peft}.lora_alpha${lora_alpha}.lora_drop${lora_dropout}.bn${pL}.sepa${split_answer}.lopt.${loss_opt}.pd.${pseudo_dist}.ens.${ensemble}.sg${sg}.pw${pseudo_weight}.np${nprompts}.bsz${bsz}.ga${ga}.lr${lr}.steps.${max_steps}
+disable_eval_mode=0
+pseudo_target_mode="pairwise" # "pairwise", "full_ensemble", "random_ensemble"
+ensemble_subset_size=0.0 # 0 < x < 1, set when pseudo_target_mode=random_ensemble
+
+exp_name=11B_${test_mode}.train.source.${train_data}.${dataset}.${subset}.${testset_name}.${model}.peft.${peft}.lora_alpha${lora_alpha}.lora_drop${lora_dropout}.bn${pL}.sepa${split_answer}.lopt.${loss_opt}.pd.${pseudo_dist}.ens.${ensemble}.deval${disable_eval_mode}.ptm${pseudo_target_mode}.enssubset${ensemble_subset_size}.pw${pseudo_weight}.np${nprompts}.bsz${bsz}.ga${ga}.lr${lr}.steps.${max_steps}
 SAVE=checkpoints/${dname}/${exp_name}_${DATE}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 cp ${0} ${SAVE}/run.sh
@@ -179,7 +184,9 @@ deepspeed --master_addr="192.168.1.1" --master_port=15206 examples/pytorch/t0-ze
   --adam_beta1 0.9 \
   --adam_beta2 0.98 \
   --adam_epsilon 1e-6 \
+  --seed ${seed} --debug_size ${train_size}\
   --learning_rate ${lr} --evaluation_strategy "steps" --eval_steps ${eval_steps} \
+  --disable_eval_mode ${disable_eval_mode} --pseudo_target_mode ${pseudo_target_mode} --ensemble_subset_size ${ensemble_subset_size} \
   --loss_option ${loss_opt} --jsd ${jsd} --detach_kl_left ${detach_kl_left} --detach_kl_right ${detach_kl_right} \
   --ensemble_option ${ensemble}  --pseudo_train_loss_weight ${pseudo_weight} --pseudo_dist ${pseudo_dist} \
   --lora_dropout ${lora_dropout} --lora_alpha ${lora_alpha} --lora_pos ${lora_pos} \
