@@ -50,7 +50,7 @@ def write_unsupervised_results_to_fille(fout_name, results, all_prompt_predictio
 
         # output predictions of prompts for each example
         for ii in range(len(all_prompt_predictions[0])):
-            s = f"gold={golds[ii]}" if golds is not None else ""
+            s = f"gold={golds[ii]}, " if golds is not None else ""
             s += " ".join([str(all_prompt_predictions[jj][ii]) for jj in range(len(all_prompt_predictions))])
             fout.write(s + "\n")
 
@@ -192,7 +192,7 @@ def compute_unsupervised_metrics(logprobs,
     results['all entropy'] = entropy
     results['avg entropy'] = entropy.mean()
 
-    fout_name = f'unsupervised_dev_{suffix}'
+    fout_name = os.path.join(fout_name, f'unsupervised_dev_{suffix}')
 
     if initial_predictions is None:
         print('finish collecting initial predictions before optimization')

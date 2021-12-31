@@ -139,6 +139,7 @@ lr_scheduler_type="polynomial"
 max_epochs=50
 log_steps=10
 debugsize=-1
+max_dev_size=200
 
 # used when loss=entropy
 temp=1.0
@@ -168,21 +169,20 @@ SAVE=checkpoints/${dname}/${exp_name}_${DATE}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 cp ${0} ${SAVE}/run.sh
 
-#deepspeed --num_gpus=1 
-#python -u 
-#python -m torch.distributed.launch --nproc_per_node 4 
+#deepspeed --num_gpus=1
+#python -u
+#python -m torch.distributed.launch --nproc_per_node 4
 #CUDA_VISIBLE_DEVICES=0
 python -u examples/pytorch/t0-zero-shot/run_t0.py \
   --dataset_name ${dataset} --subset_name ${subset} --prompt_set_name ${dataset} --testset_name ${testset_name} \
   --model_name_or_path ${model} --per_device_train_batch_size ${bsz}  --per_device_eval_batch_size ${eval_bsz} \
   --test_mode ${test_mode} --cache_dir ${cache_dir} --metric_name ${metric} \
-  --debug_size ${debugsize} \
   --peft_option ${peft} --bottleneck_dim ${pL} \
   --do_train --logging_steps ${log_steps} --num_train_epochs ${max_epochs} --max_steps ${max_steps} \
   --adam_beta1 0.9 \
   --adam_beta2 0.98 \
   --adam_epsilon 1e-6 \
-  --seed ${seed} --debug_size ${train_size}\
+  --seed ${seed} --debug_size ${train_size} --max_dev_size ${max_dev_size} \
   --learning_rate ${lr} --evaluation_strategy "steps" --eval_steps ${eval_steps} \
   --disable_eval_mode ${disable_eval_mode} --pseudo_target_mode ${pseudo_target_mode} --ensemble_subset_size ${ensemble_subset_size} \
   --loss_option ${loss_opt} --jsd ${jsd} --detach_kl_left ${detach_kl_left} --detach_kl_right ${detach_kl_right} \
