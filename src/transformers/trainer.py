@@ -499,7 +499,7 @@ class Trainer:
 
         # Junxian
         # store model's initial predictions before optimization
-        self.initial_predictions = []
+        self.initial_predictions = None
 
         # very last
         self._memory_tracker.stop_and_update_metrics()
@@ -2095,8 +2095,9 @@ class Trainer:
 
             # Junxian
             metrics = self.evaluate(eval_dataset=self.dev_dataset,
-                                    metric_key_prefix='unsupervised_dev'
+                                    metric_key_prefix='unsupervised_dev',
                                     ignore_keys=ignore_keys_for_eval)
+
             self._report_to_hp_search(trial, epoch, metrics)
 
         if self.control.should_save:
@@ -2999,13 +3000,14 @@ class Trainer:
         # Metrics!
         if (self.compute_metrics is not None or self.compute_unsupervised_metrics is not None) \
              and hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0':
-            eval_datasize = 1 if self.args.train_data_source == 'stream' else self.eval_dataset.num_instances
             compute_metrics = self.compute_metrics if metric_key_prefix != 'unsupervised_dev' else self.compute_unsupervised_metrics
+            dataset = self.eval_dataset if metric_key_prefix != 'unsupervised_dev' else self.dev_dataset
+            eval_datasize = 1 if self.args.train_data_source == 'stream' else dataset.num_instances
             if self.args.train_data_source == 'stream':
-                preds, initial_predictions = compute_metrics(all_losses, 1, self.eval_dataset.num_choices, self.eval_dataset.num_prompts)
+                preds, initial_predictions = compute_metrics(all_losses, 1, dataset.num_choices, dataset.num_prompts)
             else:
-                preds, initial_predictions = compute_metrics(all_losses, eval_datasize, self.eval_dataset.num_choices,
-                                        self.eval_dataset.num_prompts, self.eval_dataset.gold_labels,
+                preds, initial_predictions = compute_metrics(all_losses, eval_datasize, dataset.num_choices,
+                                        dataset.num_prompts, dataset.gold_labels,
                                         self.additional_metrics,
                                         fout_name=self.args.output_dir,
                                         suffix=f'{self.state.global_step}',

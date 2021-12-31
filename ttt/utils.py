@@ -45,14 +45,14 @@ def write_results_to_file(fout_name, suffix, all_prompt_metrics, all_prompt_pred
     return results
 
 def write_unsupervised_results_to_fille(fout_name, results, all_prompt_predictions, golds=None):
-    with open(nfout, "w") as fout:
+    with open(fout_name, "w") as fout:
         fout.write(",".join(["{}={}".format(kk, vv) for kk, vv in results.items()]) + "\n")
-        
+
         # output predictions of prompts for each example
         for ii in range(len(all_prompt_predictions[0])):
             s = f"gold={golds[ii]}" if golds is not None else ""
             s += " ".join([str(all_prompt_predictions[jj][ii]) for jj in range(len(all_prompt_predictions))])
-            fout.write(s + "\n")    
+            fout.write(s + "\n")
 
 
 def compute_metrics(logprobs,
@@ -141,7 +141,8 @@ def compute_metrics(logprobs,
 def compute_entropy(predictions, num_targets):
     all_entropy = []
     for prompt_p in predictions:
-        prob = np.bincount(predictions, minlength=num_targets)
+        # import pdb; pdb.set_trace()
+        prob = np.bincount(prompt_p, minlength=num_targets)
         prob = prob / len(prompt_p)
         all_entropy.append(scipy.stats.entropy(prob))
 
@@ -152,15 +153,16 @@ def compute_unsupervised_metrics(logprobs,
                                  num_examples,
                                  num_targets,
                                  num_prompts,
-                                 initial_predictions=None,
                                  golds=None,
                                  metrics=None,
                                  fout_name=None,
                                  suffix=None,
                                  return_all_prompt_preds=False,
                                  random_selection_ensemble=0.0,
+                                 initial_predictions=None,
                                  **kwargs):
 
+    # import pdb; pdb.set_trace()
     predictions = [[] for _ in range(num_prompts)]
     entropies = [[] for _ in range(num_prompts)]
     avg_ensemble_predictions = []
@@ -184,7 +186,9 @@ def compute_unsupervised_metrics(logprobs,
             all_avg_probs.append(normalized_probs)
             predictions[pidx].append(pred_label)
 
-    entropy = compute_entropy(predictions)
+    results = {}
+
+    entropy = compute_entropy(predictions, num_targets)
     results['all entropy'] = entropy
     results['avg entropy'] = entropy.mean()
 
@@ -196,7 +200,7 @@ def compute_unsupervised_metrics(logprobs,
         write_unsupervised_results_to_fille(fout_name, results, predictions, golds)
         return results, predictions
     else:
-        initial_entropy = compute_entropy(initial_predictions)
+        initial_entropy = compute_entropy(initial_predictions, num_targets)
         results['delta all entropy'] = entropy - initial_entropy
         results['delta avg entropy'] = results['delta all entropy'].mean()
         print(results)

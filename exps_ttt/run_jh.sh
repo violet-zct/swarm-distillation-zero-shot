@@ -131,14 +131,14 @@ peft="lora"
 pL=1
 lora_pos="encdec"
 lora_dropout=0.3
-lora_alpha=4
+lora_alpha=2
 
-lr=2e-5
+lr=5e-5
 lr_scheduler_type="polynomial"
 max_epochs=50
 log_steps=10
 debugsize=-1
-max_dev_size=1000
+max_dev_size=200
 
 # used when loss=entropy
 temp=1.0
@@ -160,7 +160,7 @@ pseudo_dist="smooth" # smooth (marginalized self-training), argmax
 split_answer=1  # 0 for use buggy L1 or only use L2
 
 disable_eval_mode=0
-pseudo_target_mode="random_ensemble" # "pairwise", "full_ensemble", "random_ensemble"
+pseudo_target_mode="pairwise" # "pairwise", "full_ensemble", "random_ensemble"
 ensemble_subset_size=0.5 # 0 < x < 1, set when pseudo_target_mode=random_ensemble
 
 

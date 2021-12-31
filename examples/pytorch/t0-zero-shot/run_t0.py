@@ -20,7 +20,7 @@ from transformers import (
     set_seed,
 )
 from ttt.options import *
-from ttt.utils import compute_metrics, summarize_metrics
+from ttt.utils import compute_metrics, summarize_metrics, compute_unsupervised_metrics
 from ttt.dataloader import DatasetByPrompt, TTTOnlineDataset, TTTOfflineDataset, TTTEvalDataset, \
     TTTOnlineTokenLossDataset, TTTOfflineTokenLossDataset, TTTOfflineLoopDataset
 import logging
@@ -277,6 +277,8 @@ def main():
             if test_args.train_data_source == 'train' else \
             DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, hold_out=test_args.max_dev_size, random_hold_out=False)
 
+        # import pdb; pdb.set_trace()
+
         dev_set = TTTEvalDataset(dev_data)
         test_set = TTTEvalDataset(test_data)
         print(f'prompt groups {train_data.prompt_groups}')
@@ -291,17 +293,23 @@ def main():
             data_collator=data_collator,
             test_data_collator=test_data_collator,
             compute_metrics=compute_metrics,  # todo: add metrics
+            compute_unsupervised_metrics=compute_unsupervised_metrics,
             additional_metrics=metrics,
         )
 
         # do evaluation first before training to collect initial predictions
-        print('run evaluation first to collect initial predictions')
-        eval_results = trainer.evaluate(eval_dataset=dev_set) 
+        print('run dev evaluation first to collect initial predictions')
+        eval_results = trainer.evaluate(eval_dataset=dev_set, metric_key_prefix="unsupervised_dev")
 
         if test_args.loss_option in ["consistency", "pseudo_train", "consistency_pseudo_train"]:
             trainer.train_ttt(resume_from_checkpoint=None)
         else:
             trainer.train(resume_from_checkpoint=None)
+
+        eval_results = trainer.evaluate(eval_dataset=dev_set, metric_key_prefix="unsupervised_dev")
+        for k, v in eval_results.items():
+            logger.info("dev_unsupervised_{} = {}".format(k, v))
+
         eval_results = trainer.evaluate()
         for k, v in eval_results.items():
             logger.info("{} = {}".format(k, v))
