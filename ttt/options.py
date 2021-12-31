@@ -66,7 +66,7 @@ class DataArguments:
     )
 
     cb_surgery: Optional[int] = field(
-        default=1,
+        default=0,
         metadata={"help": ""}
     )
 
