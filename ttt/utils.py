@@ -138,6 +138,15 @@ def compute_metrics(logprobs,
     print(results)
     return results, None
 
+
+def print_dict(dd):
+    for key, value in dd.items():
+        if isinstance(value, list):
+            print("{}: {}".format(key, " ".join([str(kk) for kk in value])))
+        else:
+            print("{}: {}".format(key, value))
+
+
 def compute_entropy(predictions, num_targets):
     all_entropy = []
     for prompt_p in predictions:
@@ -196,14 +205,14 @@ def compute_unsupervised_metrics(logprobs,
 
     if initial_predictions is None:
         print('finish collecting initial predictions before optimization')
-        print(results)
+        print_dict(results)
         write_unsupervised_results_to_fille(fout_name, results, predictions, golds)
         return results, predictions
     else:
         initial_entropy = compute_entropy(initial_predictions, num_targets)
         results['delta all entropy'] = entropy - initial_entropy
         results['delta avg entropy'] = results['delta all entropy'].mean()
-        print(results)
+        print_dict(results)
         write_unsupervised_results_to_fille(fout_name, results, predictions, golds)
         return results, None
 
