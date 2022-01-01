@@ -105,8 +105,7 @@ elif [ ${dname} = "hellaswag" ]; then
   dataset="hellaswag"
   subset="none"
   testset_name="validation"
-  max_steps=2000
-  eval_steps=100
+  eval_steps=200
 elif [ ${dname} = "story_cloze" ]; then
   # 1871, no train
   dataset="story_cloze"
@@ -134,12 +133,12 @@ lora_pos="encdec"
 lora_dropout=0.3
 lora_alpha=4
 
-lr=2e-5
+lr=4e-5
 lr_scheduler_type="polynomial"
 max_epochs=50
 log_steps=10
 debugsize=-1
-max_dev_size=200
+max_dev_size=1000
 
 # used when loss=entropy
 temp=1.0
