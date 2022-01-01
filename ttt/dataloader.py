@@ -78,7 +78,10 @@ class DatasetByPrompt(Dataset):
                 pass
 
         # return inputs, outputs, item['label']
-        model_inputs = self.tokenizer(inputs, padding=False, truncation=True, add_special_tokens=False)
+        if self.SUBSET_NAME == "cb" and self.cb_surgery:
+            model_inputs = self.tokenizer(inputs, padding=False, truncation=True)
+        else:
+            model_inputs = self.tokenizer(inputs, padding=False, truncation=True, add_special_tokens=False)
         outputs_ids = self.tokenizer(outputs,  padding=False, truncation=True).input_ids
         model_inputs['labels'] = [[l if l != self.tokenizer.pad_token_id else -100 for l in x] for x in outputs_ids]
 
