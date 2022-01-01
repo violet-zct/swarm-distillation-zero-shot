@@ -1,14 +1,14 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=ct.exp
+#SBATCH --job-name=11B.exp
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:a40:1
-#SBATCH --mem=50g
-#SBATCH -p gpu
+#SBATCH --gres=gpu:a40:4
+#SBATCH --mem=280g
+#SBATCH -p isi
 #SBATCH --cpus-per-task=6
-#SBATCH --time=48:00:00
-##SBATCH --array=0
+#SBATCH --time=125:00:00
+#SBATCH --array=2-6
 
 module load gcc/8.3.0
 module load vim tmux cuda/11.1-1
@@ -105,8 +105,8 @@ elif [ ${dname} = "hellaswag" ]; then
   dataset="hellaswag"
   subset="none"
   testset_name="validation"
-  max_steps=2000
-  eval_steps=100
+#  max_steps=2000
+  eval_steps=200
 elif [ ${dname} = "story_cloze" ]; then
   # 1871, no train
   dataset="story_cloze"
@@ -139,6 +139,7 @@ lr_scheduler_type="polynomial"
 max_epochs=50
 log_steps=10
 debugsize=-1
+max_dev_size=1000
 
 # used when loss=entropy
 temp=1.0
@@ -147,7 +148,7 @@ copt="uniform"
 test_mode="ttt_t0"
 train_data="validation"  # validation, train, stream
 train_size=10000
-model="T0_3B"
+model="T0pp"
 # consistency, token_level_entropy, entropy, consistency_pseudo_train, pseudo_train
 loss_opt='consistency_pseudo_train'
 loss_opt='pseudo_train'
@@ -184,7 +185,7 @@ deepspeed --master_addr="192.168.1.1" --master_port=15206 examples/pytorch/t0-ze
   --adam_beta1 0.9 \
   --adam_beta2 0.98 \
   --adam_epsilon 1e-6 \
-  --seed ${seed} --debug_size ${train_size}\
+  --seed ${seed} --debug_size ${train_size} --max_dev_size ${max_dev_size} \
   --learning_rate ${lr} --evaluation_strategy "steps" --eval_steps ${eval_steps} \
   --disable_eval_mode ${disable_eval_mode} --pseudo_target_mode ${pseudo_target_mode} --ensemble_subset_size ${ensemble_subset_size} \
   --loss_option ${loss_opt} --jsd ${jsd} --detach_kl_left ${detach_kl_left} --detach_kl_right ${detach_kl_right} \

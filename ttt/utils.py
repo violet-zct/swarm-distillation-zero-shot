@@ -44,9 +44,14 @@ def write_results_to_file(fout_name, suffix, all_prompt_metrics, all_prompt_pred
                 fout.write(s + "\n")
     return results
 
-def write_unsupervised_results_to_fille(fout_name, results, all_prompt_predictions, golds=None):
+
+def write_unsupervised_results_to_file(fout_name, results, all_prompt_predictions, golds=None):
     with open(fout_name, "w") as fout:
-        fout.write(",".join(["{}={}".format(kk, vv) for kk, vv in results.items()]) + "\n")
+        for key, value in results.items():
+            if isinstance(value, np.ndarray):
+                fout.write("{}={}".format(key, " ".join([str(kk) for kk in value])) + "\n")
+            else:
+                fout.write("{}={}".format(key, value) + "\n")
 
         # output predictions of prompts for each example
         for ii in range(len(all_prompt_predictions[0])):
@@ -71,7 +76,7 @@ def compute_metrics(logprobs,
     entropies = [[] for _ in range(num_prompts)]
     avg_ensemble_predictions = []
     vote_ensemble_predictions = []
-    all_avg_probs = []
+    all_avg_probs = []  # only used when num of examples=1
     idx = 0
     for eidx in range(num_examples):
         avg_probs = np.zeros(num_targets)
@@ -141,7 +146,7 @@ def compute_metrics(logprobs,
 
 def print_dict(dd):
     for key, value in dd.items():
-        if isinstance(value, list):
+        if isinstance(value, np.ndarray):
             print("{}: {}".format(key, " ".join([str(kk) for kk in value])))
         else:
             print("{}: {}".format(key, value))
@@ -174,12 +179,9 @@ def compute_unsupervised_metrics(logprobs,
     # import pdb; pdb.set_trace()
     predictions = [[] for _ in range(num_prompts)]
     entropies = [[] for _ in range(num_prompts)]
-    avg_ensemble_predictions = []
-    vote_ensemble_predictions = []
-    all_avg_probs = []
+    all_avg_probs = [[] for _ in range(num_prompts)]
     idx = 0
     for eidx in range(num_examples):
-        avg_probs = np.zeros(num_targets)
         for pidx in range(num_prompts):
             max_ll, pred_label = -np.inf, -1
             # actually, the number of labels of each prompt should be the same
@@ -191,8 +193,7 @@ def compute_unsupervised_metrics(logprobs,
                 idx += 1
             normalized_probs = normalized_probs / normalized_probs.sum()
             entropies[pidx].append(-(normalized_probs * np.log(normalized_probs)).sum())
-            avg_probs += normalized_probs
-            all_avg_probs.append(normalized_probs)
+            all_avg_probs[pidx].append(normalized_probs)
             predictions[pidx].append(pred_label)
 
     results = {}
@@ -200,20 +201,24 @@ def compute_unsupervised_metrics(logprobs,
     entropy = compute_entropy(predictions, num_targets)
     results['all entropy'] = entropy
     results['avg entropy'] = entropy.mean()
+    all_continuous_entropy = []
+    for probs in all_avg_probs:
+        all_continuous_entropy.appen(scipy.stats.entropy(np.mean(probs, 0)))
+    results['avg cont entropy'] = np.mean(all_continuous_entropy)
 
     fout_name = os.path.join(fout_name, f'unsupervised_dev_{suffix}')
 
     if initial_predictions is None:
         print('finish collecting initial predictions before optimization')
         print_dict(results)
-        write_unsupervised_results_to_fille(fout_name, results, predictions, golds)
+        write_unsupervised_results_to_file(fout_name, results, predictions, golds)
         return results, predictions
     else:
         initial_entropy = compute_entropy(initial_predictions, num_targets)
         results['delta all entropy'] = entropy - initial_entropy
         results['delta avg entropy'] = results['delta all entropy'].mean()
         print_dict(results)
-        write_unsupervised_results_to_fille(fout_name, results, predictions, golds)
+        write_unsupervised_results_to_file(fout_name, results, predictions, golds)
         return results, None
 
 
@@ -270,3 +275,53 @@ def compute_loss_scale(pred_labels, prompt_groups, group_id, answer_id):
 
     return support
 
+
+def compute_unsupervised_dev_best_results(dir_path, min_train_steps, metrics=['avg entropy', 'avg cont entropy']):
+    unsup_dev_prefix = "unsupervised_dev_"
+    eval_prefix = "accuracy_"
+    all_checkpoints = []
+    for fname in os.listdir(dir_path):
+        if eval_prefix in fname:
+            all_checkpoints.append(int(fname.split("_")[-1]))
+    all_checkpoints.sort()
+
+    best_ens_acc = 0.0
+    best_ckpt = 0
+    best_dev_results = {}
+    all_results = {}
+    for ckpt in all_checkpoints:
+        with open(os.path.join(dir_path, eval_prefix+str(ckpt))) as fin:
+            line = fin.readline()
+            all_results[ckpt] = line.strip()
+            line = line.strip().split(",")
+            for field in line:
+                k, v = field.split("=")
+                v = float(v)
+                if k == "avg_ensemble_accuracy" or k == "vote_ensemble_accuracy":
+                    if v > best_ens_acc:
+                        best_ckpt = ckpt
+                        best_ens_acc = v
+
+        if ckpt < min_train_steps:
+            continue
+        if not os.path.exists(os.path.join(dir_path, unsup_dev_prefix+str(ckpt))):
+            continue
+
+        with open(os.path.join(dir_path, unsup_dev_prefix+str(ckpt))) as fin:
+            for line in fin:
+                if line.startswith("gold"):
+                    break
+                for metric in metrics:
+                    if line.startswith(metric):
+                        value = float(line.strip().split("=")[-1])
+                        if metric in best_dev_results:
+                            # larger metric is better: entropy
+                            if value > best_dev_results[metric][-1]:
+                                best_dev_results[metric] = (ckpt, value)
+                        else:
+                            best_dev_results[metric] = (ckpt, value)
+    print("Best checkpoint at step {}: ".format(best_ckpt))
+    print(all_results[best_ckpt])
+    for k, v in best_dev_results.items():
+        print("Best checkpoint selected by {} at step {}:".format(k, v[0]))
+        print(all_results[v[0]])
