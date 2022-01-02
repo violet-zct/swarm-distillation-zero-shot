@@ -203,7 +203,7 @@ def compute_unsupervised_metrics(logprobs,
     results['avg entropy'] = entropy.mean()
     all_continuous_entropy = []
     for probs in all_avg_probs:
-        all_continuous_entropy.appen(scipy.stats.entropy(np.mean(probs, 0)))
+        all_continuous_entropy.append(scipy.stats.entropy(np.mean(probs, 0)))
     results['avg cont entropy'] = np.mean(all_continuous_entropy)
 
     fout_name = os.path.join(fout_name, f'unsupervised_dev_{suffix}')
