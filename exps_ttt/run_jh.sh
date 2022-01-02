@@ -147,8 +147,8 @@ copt="uniform"
 test_mode="ttt_t0"
 train_data="train"  # validation, train, stream
 train_size=10000
-# model="T0_3B"
-model="T0pp"
+model="T0_3B"
+# model="T0pp"
 # consistency, token_level_entropy, entropy, consistency_pseudo_train, pseudo_train
 loss_opt='consistency_pseudo_train' # L1+L2
 # loss_opt='pseudo_train'  # L2
