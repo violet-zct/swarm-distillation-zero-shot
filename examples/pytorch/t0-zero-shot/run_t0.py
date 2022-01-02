@@ -298,8 +298,8 @@ def main():
         )
 
         # do evaluation first before training to collect initial predictions
-        print('run dev evaluation first to collect initial predictions')
-        eval_results = trainer.evaluate(eval_dataset=dev_set, metric_key_prefix="unsupervised_dev")
+        # print('run dev evaluation first to collect initial predictions')
+        # eval_results = trainer.evaluate(eval_dataset=dev_set, metric_key_prefix="unsupervised_dev")
 
         if test_args.loss_option in ["consistency", "pseudo_train", "consistency_pseudo_train"]:
             trainer.train_ttt(resume_from_checkpoint=None)

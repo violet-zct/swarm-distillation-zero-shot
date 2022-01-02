@@ -47,9 +47,9 @@ dname=${datasets[$SLURM_ARRAY_TASK_ID]} # cb, wsc, copa, wic, anli_r1, anli_r2, 
 
 dname="rte" # cb, wsc, copa, wic, anli_r1, anli_r2, anli_r3, winogrande, story_cloze, hellaswagg
 
-ga=16 # #epochs * #samples/max_steps:control for 50 epochs for low, 16 epochs for medium and 16 for large, upper bound is 24
-max_steps=1000
-eval_steps=50
+ga=4 # #epochs * #samples/max_steps:control for 50 epochs for low, 16 epochs for medium and 16 for large, upper bound is 24
+max_steps=1
+eval_steps=1
 metric="accuracy"
 if [ ${dname} = "rte" ]; then
   # 277, 2490
@@ -124,7 +124,7 @@ fi
 
 seed=42
 bsz=1
-nprompts=10
+nprompts=5
 eval_bsz=100
 
 peft="lora"
@@ -138,7 +138,7 @@ lr_scheduler_type="polynomial"
 max_epochs=50
 log_steps=10
 debugsize=-1
-max_dev_size=200
+max_dev_size=100
 
 # used when loss=entropy
 temp=1.0
@@ -147,7 +147,8 @@ copt="uniform"
 test_mode="ttt_t0"
 train_data="train"  # validation, train, stream
 train_size=10000
-model="T0_3B"
+# model="T0_3B"
+model="T0pp"
 # consistency, token_level_entropy, entropy, consistency_pseudo_train, pseudo_train
 loss_opt='consistency_pseudo_train' # L1+L2
 # loss_opt='pseudo_train'  # L2
@@ -174,9 +175,9 @@ cp ${0} ${SAVE}/run.sh
 #python -m torch.distributed.launch --nproc_per_node 4
 #CUDA_VISIBLE_DEVICES=0
 # python -u examples/pytorch/t0-zero-shot/run_t0.py \
-# deepspeed --master_addr="192.168.1.1" --master_port=15206 examples/pytorch/t0-zero-shot/run_t0.py \
-#   --deepspeed deepspeed_configs/ds_config_zero2.json \
-python -u examples/pytorch/t0-zero-shot/run_t0.py \
+# python -u examples/pytorch/t0-zero-shot/run_t0.py \
+deepspeed --master_addr="192.168.1.1" --master_port=15206 examples/pytorch/t0-zero-shot/run_t0.py \
+  --deepspeed deepspeed_configs/ds_config_zero2.json \
   --dataset_name ${dataset} --subset_name ${subset} --prompt_set_name ${dataset} --testset_name ${testset_name} \
   --model_name_or_path ${model} --per_device_train_batch_size ${bsz}  --per_device_eval_batch_size ${eval_bsz} \
   --test_mode ${test_mode} --cache_dir ${cache_dir} --metric_name ${metric} \
