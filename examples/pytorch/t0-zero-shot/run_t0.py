@@ -20,7 +20,7 @@ from transformers import (
     set_seed,
 )
 from ttt.options import *
-from ttt.utils import compute_metrics, summarize_metrics, compute_unsupervised_metrics
+from ttt.utils import compute_metrics, summarize_metrics, compute_unsupervised_metrics, compute_unsupervised_dev_best_results
 from ttt.dataloader import DatasetByPrompt, TTTOnlineDataset, TTTOfflineDataset, TTTEvalDataset, \
     TTTOnlineTokenLossDataset, TTTOfflineTokenLossDataset, TTTOfflineLoopDataset
 import logging
@@ -81,7 +81,7 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, data_
         if processed_batch % 10 == 0:
             logger.info("evaluating {} batches of test examples".format(processed_batch))
 
-    results = compute_metrics(all_loglikelihoods, len(test_data), test_data.num_choices, test_data.num_prompts,
+    results, _ = compute_metrics(all_loglikelihoods, len(test_data), test_data.num_choices, test_data.num_prompts,
                               golds, metrics, fout_name=fout_name)
     for k, v in results.items():
         logger.info("{} = {}".format(k, v))
@@ -310,6 +310,7 @@ def main():
         for k, v in eval_results.items():
             logger.info("dev_unsupervised_{} = {}".format(k, v))
 
+        compute_unsupervised_dev_best_results(training_args.output_dir, min_train_steps=test_args.min_train_steps)
         eval_results = trainer.evaluate()
         for k, v in eval_results.items():
             logger.info("{} = {}".format(k, v))

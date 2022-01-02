@@ -229,3 +229,8 @@ class TestArguments:
         metadata={"help": "<1, > 0, set when pseudo_target_mode=random_ensemble, "
                           "use this ratio of prompts to compute ensemble"}
     )
+
+    min_train_steps: Optional[int] = field(
+        default=300,
+        metadata={"help": "get best ckpt after this many steps with the unsupervised metric"}
+    )
