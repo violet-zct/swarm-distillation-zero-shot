@@ -23,12 +23,12 @@ from ttt.options import *
 from ttt.utils import compute_metrics, summarize_metrics, compute_unsupervised_metrics, compute_unsupervised_dev_best_results
 from ttt.dataloader import DatasetByPrompt, TTTOnlineDataset, TTTOfflineDataset, TTTEvalDataset, \
     TTTOnlineTokenLossDataset, TTTOfflineTokenLossDataset, TTTOfflineLoopDataset
-import logging
 
+import logging
+logger = logging.getLogger(__name__)
 # reload the t0 model after each test point or reset the biases when using bitfit;
 # prompt tuning looks easier
 #
-logger = logging.getLogger(__name__)
 
 
 def chunks(tot, bsz):
@@ -181,10 +181,10 @@ def main():
         )
         for n, p in model.named_parameters():
             if test_args.peft_option == 'bitfit' and "bias" in n:
-                print("tune " + n)
+                logger.info("tune " + n)
                 p.requires_grad = True
             elif test_args.peft_option in ['lora', 'prompt_tuning'] and "ef_" in n:
-                print("tune " + n)
+                logger.info("tune " + n)
                 p.requires_grad = True
             else:
                 p.requires_grad = False
@@ -255,8 +255,8 @@ def main():
             logger.info("{} = {}".format(k, v))
     else:
         model = _model_init()
-        print(f'there are {test_data.num_prompts} prompts in total')
-        print(f'using {test_args.train_random_n_prompts} prompts  during training')
+        logger.info(f'there are {test_data.num_prompts} prompts in total')
+        logger.info(f'using {test_args.train_random_n_prompts} prompts  during training')
 
         train_split = data_args.testset_name.replace("dev", "train") if data_args.dataset_name == "anli" else "train"
         data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, split=train_split, hold_out=test_args.debug_size) \
@@ -281,7 +281,7 @@ def main():
 
         dev_set = TTTEvalDataset(dev_data)
         test_set = TTTEvalDataset(test_data)
-        print(f'prompt groups {train_data.prompt_groups}')
+        logger.info(f'prompt groups {train_data.prompt_groups}')
 
         trainer = Trainer(
             model=model,
