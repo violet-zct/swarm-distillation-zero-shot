@@ -234,3 +234,8 @@ class TestArguments:
         default=300,
         metadata={"help": "get best ckpt after this many steps with the unsupervised metric"}
     )
+
+    max_early_stop_patience: Optional[int] = field(
+        default=2,
+        metadata={"help": "caveat: some datasets need to train longer"}
+    )

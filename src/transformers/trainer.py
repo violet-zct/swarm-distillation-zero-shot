@@ -1990,7 +1990,7 @@ class Trainer:
                     self.control = self.callback_handler.on_step_end(args, self.state, self.control)
 
                     self._maybe_log_save_evaluate(tr_loss, model, trial, epoch, ignore_keys_for_eval)
-                    if self.early_stop_patience >= 2:
+                    if self.early_stop_patience >= self.args.max_early_stop_patience:
                         self.control.should_training_stop = True
                 else:
                     self.control = self.callback_handler.on_substep_end(args, self.state, self.control)
