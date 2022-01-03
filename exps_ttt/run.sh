@@ -158,6 +158,7 @@ ensemble='avg_prob'  # avg_prob, majority_vote
 pseudo_weight=1.0
 pseudo_dist="smooth" # smooth (marginalized self-training), argmax
 split_answer=0  # 0 for use buggy L1 or only use L2
+min_train_steps=300  # set smaller for smaller datasets
 
 disable_eval_mode=0
 pseudo_target_mode="pairwise" # "pairwise", "full_ensemble", "random_ensemble"
@@ -190,6 +191,6 @@ python -u examples/pytorch/t0-zero-shot/run_t0.py \
   --prob_temperature ${temp} --combine_option ${copt} \
   --train_random_n_prompts ${nprompts} --train_data_source ${train_data} --split_answer_groups ${split_answer} \
   --save_strategy "no" --warmup_steps 100 --gradient_accumulation_steps ${ga} \
-  --lr_scheduler_type ${lr_scheduler_type} \
+  --lr_scheduler_type ${lr_scheduler_type} --min_train_steps ${min_train_steps} \
   --output_dir ${SAVE} --overwrite_output_dir --report_to "none" \
   --disable_tqdm "True" 2>&1 | tee ${SAVE}/log.txt
