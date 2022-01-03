@@ -1244,6 +1244,7 @@ class Trainer:
         # self.model         is the Transformers Model
         # self.model_wrapped is DDP(Transformers Model), Deepspeed(Transformers Model), etc.
 
+
         # Train!
         num_examples = (
             self.num_examples(train_dataloader) if train_dataset_is_sized else total_train_batch_size * args.max_steps
@@ -1717,6 +1718,10 @@ class Trainer:
         # important: at this point:
         # self.model         is the Transformers Model
         # self.model_wrapped is DDP(Transformers Model), Deepspeed(Transformers Model), etc.
+
+        # do evaluation first before training to collect initial predictions
+        print('run dev evaluation first to collect initial predictions')
+        self.evaluate(eval_dataset=self.dev_dataset, metric_key_prefix="unsupervised_dev")
 
         # Train!
         num_examples = (
