@@ -310,10 +310,11 @@ def main():
         for k, v in eval_results.items():
             logger.info("dev_unsupervised_{} = {}".format(k, v))
 
-        compute_unsupervised_dev_best_results(training_args.output_dir, min_train_steps=test_args.min_train_steps)
         eval_results = trainer.evaluate()
         for k, v in eval_results.items():
             logger.info("{} = {}".format(k, v))
+
+        compute_unsupervised_dev_best_results(training_args.output_dir, min_train_steps=test_args.min_train_steps)
 
 
 def _mp_fn(index):

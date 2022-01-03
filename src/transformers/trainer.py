@@ -1741,6 +1741,8 @@ class Trainer:
         epochs_trained = 0
         steps_trained_in_current_epoch = 0
         steps_trained_progress_bar = None
+        self.early_stop_metric = -1
+        self.early_stop_patience = 0
 
         # Check if continuing training from a checkpoint
         if resume_from_checkpoint is not None and os.path.isfile(
@@ -1988,6 +1990,8 @@ class Trainer:
                     self.control = self.callback_handler.on_step_end(args, self.state, self.control)
 
                     self._maybe_log_save_evaluate(tr_loss, model, trial, epoch, ignore_keys_for_eval)
+                    if self.early_stop_patience >= 2:
+                        self.control.should_training_stop = True
                 else:
                     self.control = self.callback_handler.on_substep_end(args, self.state, self.control)
 
@@ -1995,7 +1999,7 @@ class Trainer:
                     break
 
             self.control = self.callback_handler.on_epoch_end(args, self.state, self.control)
-            self._maybe_log_save_evaluate(tr_loss, model, trial, epoch, ignore_keys_for_eval)
+            # self._maybe_log_save_evaluate(tr_loss, model, trial, epoch, ignore_keys_for_eval)
 
             if DebugOption.TPU_METRICS_DEBUG in self.args.debug:
                 if is_torch_tpu_available():
@@ -2102,6 +2106,12 @@ class Trainer:
             metrics = self.evaluate(eval_dataset=self.dev_dataset,
                                     metric_key_prefix='unsupervised_dev',
                                     ignore_keys=ignore_keys_for_eval)
+
+            if self.early_stop_metric > metrics['avg entropy'] and self.state.global_step > self.args.min_train_steps:
+                self.early_stop_patience = self.early_stop_patience + 1
+            else:
+                self.early_stop_patience = 0
+            self.early_stop_metric = metrics['avg entropy']
 
             self._report_to_hp_search(trial, epoch, metrics)
 
