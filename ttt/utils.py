@@ -90,8 +90,8 @@ def compute_metrics(logprobs,
                 if logprobs[idx] > max_ll:
                     max_ll, pred_label = logprobs[idx], ii
                 normalized_probs[ii] = math.exp(logprobs[idx])
-                idx += 1
                 logit.append(logprobs[idx])
+                idx += 1
             logits[pidx].append(logit)
             normalized_probs = normalized_probs / normalized_probs.sum()
             entropies[pidx].append(-(normalized_probs * np.log(normalized_probs)).sum())
