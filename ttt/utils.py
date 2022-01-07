@@ -78,17 +78,21 @@ def compute_metrics(logprobs,
     vote_ensemble_predictions = []
     all_avg_probs = []  # only used when num of examples=1
     idx = 0
+    logits = [[] for _ in range(num_prompts)]
     for eidx in range(num_examples):
         avg_probs = np.zeros(num_targets)
         for pidx in range(num_prompts):
             max_ll, pred_label = -np.inf, -1
             # actually, the number of labels of each prompt should be the same
             normalized_probs = np.zeros(num_targets)
+            logit = []
             for ii in range(num_targets):
                 if logprobs[idx] > max_ll:
                     max_ll, pred_label = logprobs[idx], ii
                 normalized_probs[ii] = math.exp(logprobs[idx])
                 idx += 1
+                logit.append(logprobs[idx])
+            logits[pidx].append(logit)
             normalized_probs = normalized_probs / normalized_probs.sum()
             entropies[pidx].append(-(normalized_probs * np.log(normalized_probs)).sum())
             avg_probs += normalized_probs
@@ -137,6 +141,11 @@ def compute_metrics(logprobs,
     avg_entropy = [np.mean(ents) for ents in entropies]
     vote_ensemble_metrics = metrics.compute(predictions=vote_ensemble_predictions, references=golds)
 
+    for pidx in range(num_prompts):
+        with open(fout_name+".p{}.logits".format(pidx), "w") as fout:
+            for logit in logits[pidx]:
+                fout.write(" ".join([str(l) for l in logit]) + "\n")
+                
     results = write_results_to_file(fout_name, suffix, prompt_metrics, predictions,
                                     avg_ensemble_metrics, avg_ensemble_predictions,
                                     vote_ensemble_metrics, vote_ensemble_predictions, golds, avg_entropy)
