@@ -78,17 +78,21 @@ def compute_metrics(logprobs,
     vote_ensemble_predictions = []
     all_avg_probs = []  # only used when num of examples=1
     idx = 0
+    logits = [[] for _ in range(num_prompts)]
     for eidx in range(num_examples):
         avg_probs = np.zeros(num_targets)
         for pidx in range(num_prompts):
             max_ll, pred_label = -np.inf, -1
             # actually, the number of labels of each prompt should be the same
             normalized_probs = np.zeros(num_targets)
+            logit = []
             for ii in range(num_targets):
                 if logprobs[idx] > max_ll:
                     max_ll, pred_label = logprobs[idx], ii
                 normalized_probs[ii] = math.exp(logprobs[idx])
+                logit.append(logprobs[idx])
                 idx += 1
+            logits[pidx].append(logit)
             normalized_probs = normalized_probs / normalized_probs.sum()
             entropies[pidx].append(-(normalized_probs * np.log(normalized_probs)).sum())
             avg_probs += normalized_probs
@@ -136,6 +140,15 @@ def compute_metrics(logprobs,
     avg_ensemble_metrics = metrics.compute(predictions=avg_ensemble_predictions, references=golds)
     avg_entropy = [np.mean(ents) for ents in entropies]
     vote_ensemble_metrics = metrics.compute(predictions=vote_ensemble_predictions, references=golds)
+
+    if fout_name.startswith("results"):
+        nfout = fout_name + ".logits.p"
+    else:
+        nfout = os.path.join(fout_name, f'logits.{suffix}.p')
+    for pidx in range(num_prompts):
+        with open("{}{}".format(nfout, pidx), "w") as fout:
+            for logit in logits[pidx]:
+                fout.write(" ".join([str(l) for l in logit]) + "\n")
 
     results = write_results_to_file(fout_name, suffix, prompt_metrics, predictions,
                                     avg_ensemble_metrics, avg_ensemble_predictions,
@@ -302,7 +315,7 @@ def compute_unsupervised_dev_best_results(dir_path, min_train_steps, metrics=['a
                         best_ckpt = ckpt
                         best_ens_acc = v
 
-        if ckpt < min_train_steps:
+        if ckpt <= min_train_steps:
             continue
         if not os.path.exists(os.path.join(dir_path, unsup_dev_prefix+str(ckpt))):
             continue

@@ -27,6 +27,7 @@ class DatasetByPrompt(Dataset):
         self.load()
 
         self.tokenizer = tokenizer
+        self.abl_nprompts = args.abl_nprompts
         self.prompts = DatasetTemplates(self.PROMPTSET_NAME, self.SUBSET_NAME)
         self.original_task_prompts = self.extract_original_task_prompts(check_valid_prompts=self.SUBSET_NAME=="copa")
         self.construct_meta_info()
@@ -121,6 +122,9 @@ class DatasetByPrompt(Dataset):
         prompt_names = [name for name in all_prompt_names if self.prompts[name].metadata.original_task and name not in invalid_names]
         if self.SUBSET_NAME == "cb" and self.cb_surgery:
             return [name for ii, name in enumerate(prompt_names) if ii != 1 and ii != 10]
+
+        if self.abl_nprompts > 0:
+            prompt_names = np.random.choice(prompt_names, self.abl_nprompts, replace=False)
         return prompt_names
 
 

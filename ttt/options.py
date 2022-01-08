@@ -70,6 +70,11 @@ class DataArguments:
         metadata={"help": ""}
     )
 
+    abl_nprompts: Optional[int] = field(
+        default=-1,
+        metadata={"help": "ablation study on number of prompts"}
+    )
+
 @dataclass
 class TestArguments:
     test_mode: str = field(

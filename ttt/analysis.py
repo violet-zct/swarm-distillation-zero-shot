@@ -1,7 +1,7 @@
 import sys
 import itertools
 import numpy as np
-import scipy
+import scipy.stats
 
 fprefix = sys.argv[1]
 nprompts = int(sys.argv[2])
@@ -9,7 +9,7 @@ nprompts = int(sys.argv[2])
 logits = [[] for _ in range(nprompts)]
 
 for pidx in range(nprompts):
-    with open(fprefix+".p{}.logits") as fin:
+    with open(fprefix+".p{}.logits".format(pidx)) as fin:
         for line in fin:
             logits[pidx].append([float(x) for x in line.strip().split()])
 
@@ -26,7 +26,7 @@ with open(fprefix+".accuracy_None") as fin:
 
 
 bstart, bend, interval = 0.1, 10, 0.2
-biases = [list(range(bstart, bend, interval)) for _ in range(nlabels)]
+biases = [list(np.arange(bstart, bend, interval)) for _ in range(nlabels)]
 biases = itertools.product(*biases)
 
 entropies = []
