@@ -340,10 +340,25 @@ class T5LayerNorm(nn.Module):
         return self.weight * hidden_states
 
 
+def check_use_lora(config, layer_id):
+    if config.lora_pos == "encdec":
+        return True
+    elif config.lora_pos == "enc" and not config.is_decoder:
+        return True
+    elif config.lora_pos == "dec" and config.is_decoder:
+        return True
+    elif config.lora_pos == "topk" and layer_id < config.lora_layer_k:
+        return True
+    elif config.lora_pos == "lastk" and config.num_layers - layer_id <= config.lora_layer_k:
+        return True
+    else:
+        return False
+
+
 class T5DenseReluDense(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, layer_id=None):
         super().__init__()
-        if getattr(config, 'peft_option', "none") == "lora" and (config.is_decoder or config.lora_pos == 'encdec'):
+        if getattr(config, 'peft_option', "none") == "lora" and check_use_lora(config, layer_id):
             self.wi = Linear(config.d_model, config.d_ff, r=config.bottleneck_dim,
                                lora_dropout=config.lora_dropout, lora_alpha=config.lora_alpha)
             self.wo = Linear(config.d_ff, config.d_model, r=config.bottleneck_dim,
@@ -363,9 +378,9 @@ class T5DenseReluDense(nn.Module):
 
 
 class T5DenseGatedGeluDense(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, layer_id=None):
         super().__init__()
-        if getattr(config, 'peft_option', "none") == "lora" and (config.is_decoder or config.lora_pos == 'encdec'):
+        if getattr(config, 'peft_option', "none") == "lora" and check_use_lora(config, layer_id):
             self.wi_0 = Linear(config.d_model, config.d_ff, r=config.bottleneck_dim,
                                lora_dropout=config.lora_dropout, lora_alpha=config.lora_alpha)
             self.wo = Linear(config.d_ff, config.d_model, r=config.bottleneck_dim,
@@ -387,12 +402,12 @@ class T5DenseGatedGeluDense(nn.Module):
 
 
 class T5LayerFF(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, layer_id=None):
         super().__init__()
         if config.feed_forward_proj == "relu":
-            self.DenseReluDense = T5DenseReluDense(config)
+            self.DenseReluDense = T5DenseReluDense(config, layer_id)
         elif config.feed_forward_proj == "gated-gelu":
-           self.DenseReluDense = T5DenseGatedGeluDense(config)
+           self.DenseReluDense = T5DenseGatedGeluDense(config, layer_id)
         else:
             raise ValueError(
                 f"{self.config.feed_forward_proj} is not supported. Choose between `relu` and `gated-gelu`"
@@ -719,15 +734,16 @@ class T5LayerCrossAttention(nn.Module):
 
 
 class T5Block(nn.Module):
-    def __init__(self, config, has_relative_attention_bias=False):
+    def __init__(self, config, has_relative_attention_bias=False, layer_id=None):
         super().__init__()
         self.is_decoder = config.is_decoder
+        self.layer_id = layer_id
         self.layer = nn.ModuleList()
         self.layer.append(T5LayerSelfAttention(config, has_relative_attention_bias=has_relative_attention_bias))
         if self.is_decoder:
             self.layer.append(T5LayerCrossAttention(config))
 
-        self.layer.append(T5LayerFF(config))
+        self.layer.append(T5LayerFF(config, layer_id))
 
     def forward(
         self,
@@ -941,7 +957,7 @@ class T5Stack(T5PreTrainedModel):
             self.ef_prefix_emb = None
 
         self.block = nn.ModuleList(
-            [T5Block(config, has_relative_attention_bias=bool(i == 0)) for i in range(config.num_layers)]
+            [T5Block(config, has_relative_attention_bias=bool(i == 0), layer_id=i) for i in range(config.num_layers)]
         )
         self.final_layer_norm = T5LayerNorm(config.d_model, eps=config.layer_norm_epsilon)
         self.dropout = nn.Dropout(config.dropout_rate)

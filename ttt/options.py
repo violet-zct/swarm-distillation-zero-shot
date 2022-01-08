@@ -192,7 +192,12 @@ class TestArguments:
 
     lora_pos: Optional[str] = field(
         default="encdec",
-        metadata={"choices": ["dec", "encdec"]}
+        metadata={"choices": ["dec", "encdec", "enc", "topk", "lastk"]}
+    )
+
+    lora_layer_k: Optional[int] = field(
+        default=24,
+        metadata={"help": "if 0, use the buggy version of L1"}
     )
 
     lora_dropout: Optional[float] = field(
