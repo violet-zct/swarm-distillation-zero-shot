@@ -272,10 +272,14 @@ def main():
         else:
             raise NotImplementedError
         # import pdb; pdb.set_trace()
-        dev_data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, split=train_split, hold_out=test_args.max_dev_size,
-            random_hold_out=False) \
-            if test_args.train_data_source == 'train' else \
-            DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, hold_out=test_args.max_dev_size, random_hold_out=False)
+
+        if test_args.max_dev_size > len(data):
+            dev_data = data
+        else:
+            dev_data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, split=train_split, hold_out=test_args.max_dev_size,
+                random_hold_out=False) \
+                if test_args.train_data_source == 'train' else \
+                DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, hold_out=test_args.max_dev_size, random_hold_out=False)
 
         # import pdb; pdb.set_trace()
 
