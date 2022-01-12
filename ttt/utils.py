@@ -142,14 +142,14 @@ def compute_metrics(logprobs,
     vote_ensemble_metrics = metrics.compute(predictions=vote_ensemble_predictions, references=golds)
 
     # print logits
-    # if fout_name.startswith("results"):
-    #     nfout = fout_name + ".logits.p"
-    # else:
-    #     nfout = os.path.join(fout_name, f'logits.{suffix}.p')
-    # for pidx in range(num_prompts):
-    #     with open("{}{}".format(nfout, pidx), "w") as fout:
-    #         for logit in logits[pidx]:
-    #             fout.write(" ".join([str(l) for l in logit]) + "\n")
+    if fout_name.startswith("results"):
+        nfout = fout_name + ".logits.p"
+    else:
+        nfout = os.path.join(fout_name, f'logits.{suffix}.p')
+    for pidx in range(num_prompts):
+        with open("{}{}".format(nfout, pidx), "w") as fout:
+            for logit in logits[pidx]:
+                fout.write(" ".join([str(l) for l in logit]) + "\n")
 
     results = write_results_to_file(fout_name, suffix, prompt_metrics, predictions,
                                     avg_ensemble_metrics, avg_ensemble_predictions,
