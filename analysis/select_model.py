@@ -132,20 +132,24 @@ for ii, cidx in enumerate(all_checkpoints):
 
 
 def select_by_trend(values):
-    patience = 4
+    patience = 3
     count = 0
     best = -1
     prev = values[0]
     idx = 1
     start_decrease = -1
+    first = True
     for v in values[1:]:
         if v <= prev:
             count += 1
             start_decrease = idx - count
         else:
             count = 0
-        if count >= patience:
-            best = idx
+        if count >= patience and first:
+            best = idx - count
+            first = False
+        else:
+            first = True
         idx += 1
     if best != -1:
         return best
@@ -153,8 +157,8 @@ def select_by_trend(values):
         return start_decrease
 
 
-def select_by_max(value):
-    return np.argmax(value)
+def select_by_max(values):
+    return np.argmax(values)
 
 
 accuracies = []
@@ -178,6 +182,13 @@ for i in range(len(all_checkpoints)-1):
         i, ensemble_res, pairwise_score, delta_pairwise, fleiss_kappa_score, delta_fleiss_karpa, avg_ent, delta_avg_ent,
         avg_cont_ent, delta_avg_cont_ent)
     print(s)
+    
+i = len(all_checkpoints)-1
+accuracies.append(max([float(field.split("=")[-1]) for field in ensemble_results.split(",")]))
+print("ckpt {}: {}, pairwise={:.3f}, delta pairwise={:.3f}, fleiss karpa={:.3f}, delta fk={:.3f}, " \
+        "avg entropy={:.3f}, delta avg ent={:.3f}, avg cont entropy={:.3f}, delta cont ent={:.3f}".format(
+        i, ensemble_results[i], pairwise_consist_scores[-1], 0.000, fleiss_kappa_scores[-1], 0.000, metrics["avg entropy"][i], 0.000,
+        metrics["avg cont entropy"][i], 0.000))
 
 max_kappa = select_by_max(fleiss_kappa_scores)
 max_ent = select_by_max(metrics["avg entropy"])
