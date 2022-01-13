@@ -4,7 +4,7 @@ import sys
 model_fname = sys.argv[1]
 if len(sys.argv) > 2:
     baseline_fname = sys.argv[2]
-else :
+else:
     baseline_fname = None
 
 
