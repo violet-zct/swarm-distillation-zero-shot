@@ -104,7 +104,7 @@ all_checkpoints.sort()
 
 metrics = {}
 ensemble_results, pairwise_consist_scores, fleiss_kappa_scores = [], [], []
-for cidx in all_checkpoints:
+for ii, cidx in enumerate(all_checkpoints):
     ensemble_res, pairwise_score, fleiss_kappa_score = compute_consistency_test_set(os.path.join(dirname, eval_prefix+str(cidx)))
     ensemble_results.append(ensemble_res)
     pairwise_consist_scores.append(pairwise_score)
@@ -112,12 +112,31 @@ for cidx in all_checkpoints:
 
     read_unsupervised_metric(os.path.join(dirname, unsup_dev_prefix+str(cidx)), metrics)
 
-    mnames = list(metrics.keys())
-    s = "ckpt {}: {}, pairwise score={}, fleiss karpa={}, {}={}, {}={}".format(cidx, ensemble_res, pairwise_score,
-                                                                               fleiss_kappa_score, mnames[0],
-                                                                               metrics[mnames[0]][-1], mnames[1],
-                                                                               metrics[mnames[1]][-1]
-                                                                               )
+    # mnames = list(metrics.keys())
+    # s = "ckpt {}: {}, pairwise score={}, fleiss karpa={}, {}={}, {}={}".format(cidx, ensemble_res, pairwise_score,
+    #                                                                            fleiss_kappa_score, mnames[0],
+    #                                                                            metrics[mnames[0]][-1], mnames[1],
+    #                                                                            metrics[mnames[1]][-1]
+    #                                                                            )
+    # print(s)
+
+
+for i in range(len(all_checkpoints)-1):
+    ensemble_res = ensemble_results[i]
+    pairwise_score = pairwise_consist_scores[i]
+    fleiss_kappa_score = fleiss_kappa_scores[i]
+
+    delta_pairwise = pairwise_score - ensemble_results[i+1]
+    delta_fleiss_karpa = fleiss_kappa_score - fleiss_kappa_scores[i+1]
+
+    avg_ent = metrics["avg entropy"][i]
+    avg_cont_ent = metrics["avg cont entropy"][i]
+
+    delta_avg_ent = avg_ent - metrics["avg entropy"][i+1]
+    delta_avg_cont_ent = avg_cont_ent - metrics["avg cont entropy"][i+1]
+
+    s = "ckpt {}: {}, pairwise={}, delta pairwise={}, fleiss karpa={}, delta fk={}, " \
+        "avg entropy={}, delta avg ent={}, avg cont entropy={}, delta cont ent={}".format(
+        i, ensemble_res, pairwise_score, delta_pairwise, fleiss_kappa_score, delta_fleiss_karpa, avg_ent, delta_avg_ent,
+        avg_cont_ent, delta_avg_cont_ent)
     print(s)
-
-
