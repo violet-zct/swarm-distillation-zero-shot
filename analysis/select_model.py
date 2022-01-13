@@ -140,7 +140,7 @@ def select_by_trend(values):
     start_decrease = -1
     first = True
     for v in values[1:]:
-        if v <= prev:
+        if v <= prev and idx > 1:
             count += 1
             start_decrease = idx - count
         else:
@@ -151,6 +151,7 @@ def select_by_trend(values):
         else:
             first = True
         idx += 1
+        prev = v
     if best != -1:
         return best
     else:
@@ -182,9 +183,9 @@ for i in range(len(all_checkpoints)-1):
         i, ensemble_res, pairwise_score, delta_pairwise, fleiss_kappa_score, delta_fleiss_karpa, avg_ent, delta_avg_ent,
         avg_cont_ent, delta_avg_cont_ent)
     print(s)
-    
+
 i = len(all_checkpoints)-1
-accuracies.append(max([float(field.split("=")[-1]) for field in ensemble_results.split(",")]))
+accuracies.append(max([float(field.split("=")[-1]) for field in ensemble_results[-1].split(",")]))
 print("ckpt {}: {}, pairwise={:.3f}, delta pairwise={:.3f}, fleiss karpa={:.3f}, delta fk={:.3f}, " \
         "avg entropy={:.3f}, delta avg ent={:.3f}, avg cont entropy={:.3f}, delta cont ent={:.3f}".format(
         i, ensemble_results[i], pairwise_consist_scores[-1], 0.000, fleiss_kappa_scores[-1], 0.000, metrics["avg entropy"][i], 0.000,
