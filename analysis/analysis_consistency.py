@@ -89,6 +89,6 @@ for bacc, bent, macc, ment in zip(baseline_accuracies, baseline_ents, model_accu
     delta_ents.append(ment-bent)
 print("="*20)
 print("delta accs")
-print(delta_accs)
+print(" ".join([str(d) for d in delta_accs]))
 print("delta ents")
-print(delta_ents)
+print(" ".join([str(d) for d in delta_ents]))
