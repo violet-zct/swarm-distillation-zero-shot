@@ -74,7 +74,7 @@ def compute_consistency_test_set(fname):
     M = np.array(M)
     fleiss_kappa_score = fleiss_kappa(M)
     permutation = np.random.permutation(n_labels)
-    check = fleiss_kappa_score(M[:, permutation])
+    check = fleiss_kappa(M[:, permutation])
     assert check == fleiss_kappa_score
     return ensemble_res, pairwise_score, fleiss_kappa_score
 
@@ -126,7 +126,7 @@ for i in range(len(all_checkpoints)-1):
     pairwise_score = pairwise_consist_scores[i]
     fleiss_kappa_score = fleiss_kappa_scores[i]
 
-    delta_pairwise = pairwise_score - ensemble_results[i+1]
+    delta_pairwise = pairwise_score - pairwise_consist_scores[i+1]
     delta_fleiss_karpa = fleiss_kappa_score - fleiss_kappa_scores[i+1]
 
     avg_ent = metrics["avg entropy"][i]
@@ -135,8 +135,8 @@ for i in range(len(all_checkpoints)-1):
     delta_avg_ent = avg_ent - metrics["avg entropy"][i+1]
     delta_avg_cont_ent = avg_cont_ent - metrics["avg cont entropy"][i+1]
 
-    s = "ckpt {}: {}, pairwise={}, delta pairwise={}, fleiss karpa={}, delta fk={}, " \
-        "avg entropy={}, delta avg ent={}, avg cont entropy={}, delta cont ent={}".format(
+    s = "ckpt {}: {}, pairwise={:.3f}, delta pairwise={:.3f}, fleiss karpa={:.3f}, delta fk={:.3f}, " \
+        "avg entropy={:.3f}, delta avg ent={:.3f}, avg cont entropy={:.3f}, delta cont ent={:.3f}".format(
         i, ensemble_res, pairwise_score, delta_pairwise, fleiss_kappa_score, delta_fleiss_karpa, avg_ent, delta_avg_ent,
         avg_cont_ent, delta_avg_cont_ent)
     print(s)
