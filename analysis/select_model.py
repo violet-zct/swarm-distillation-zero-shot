@@ -52,14 +52,17 @@ def compute_entropy(predictions, num_targets):
     return np.array(all_entropy)
 
 
-def compute_consistency_test_set(fname):
+def compute_consistency_test_set(fname, read_only=False):
     all_scores = []
     M = []
+    ensemble_res = None
     with open(fname) as fin:
         for line in fin:
             if line.startswith("max_accuracy"):
                 fields = line.strip().split(",")
                 ensemble_res = ",".join(fields[-2:])
+                if read_only:
+                    return ensemble_res, line.strip()
 
             if line.startswith("gold"):
                 fields = line.strip().split(",")
@@ -98,15 +101,22 @@ unsup_dev_prefix = "unsupervised_dev_"
 eval_prefix = "accuracy_"
 all_checkpoints = []
 for fname in os.listdir(dirname):
-    if eval_prefix in fname:
+    if unsup_dev_prefix in fname:
         all_checkpoints.append(int(fname.split("_")[-1]))
 all_checkpoints.sort()
+all_checkpoints = all_checkpoints[1:]
 
 metrics = {}
+full_results = []
 ensemble_results, pairwise_consist_scores, fleiss_kappa_scores = [], [], []
 for ii, cidx in enumerate(all_checkpoints):
-    ensemble_res, pairwise_score, fleiss_kappa_score = compute_consistency_test_set(os.path.join(dirname, eval_prefix+str(cidx)))
+    ensemble_res, full_result = compute_consistency_test_set(
+        os.path.join(dirname, eval_prefix + str(cidx)), read_only=True)
     ensemble_results.append(ensemble_res)
+    full_results.append(full_result)
+
+    _, pairwise_score, fleiss_kappa_score = compute_consistency_test_set(
+        os.path.join(dirname, unsup_dev_prefix + str(cidx)))
     pairwise_consist_scores.append(pairwise_score)
     fleiss_kappa_scores.append(fleiss_kappa_score)
 
@@ -121,11 +131,39 @@ for ii, cidx in enumerate(all_checkpoints):
     # print(s)
 
 
+def select_by_trend(values):
+    patience = 4
+    count = 0
+    best = -1
+    prev = values[0]
+    idx = 1
+    start_decrease = -1
+    for v in values[1:]:
+        if v <= prev:
+            count += 1
+            start_decrease = idx - count
+        else:
+            count = 0
+        if count >= patience:
+            best = idx
+        idx += 1
+    if best != -1:
+        return best
+    else:
+        return start_decrease
+
+
+def select_by_max(value):
+    return np.argmax(value)
+
+
+accuracies = []
 for i in range(len(all_checkpoints)-1):
     ensemble_res = ensemble_results[i]
     pairwise_score = pairwise_consist_scores[i]
     fleiss_kappa_score = fleiss_kappa_scores[i]
 
+    accuracies.append(max([float(field.split("=")[-1]) for field in ensemble_res.split(",")]))
     delta_pairwise = pairwise_score - pairwise_consist_scores[i+1]
     delta_fleiss_karpa = fleiss_kappa_score - fleiss_kappa_scores[i+1]
 
@@ -140,3 +178,20 @@ for i in range(len(all_checkpoints)-1):
         i, ensemble_res, pairwise_score, delta_pairwise, fleiss_kappa_score, delta_fleiss_karpa, avg_ent, delta_avg_ent,
         avg_cont_ent, delta_avg_cont_ent)
     print(s)
+
+max_kappa = select_by_max(fleiss_kappa_scores)
+max_ent = select_by_max(metrics["avg entropy"])
+max_cont_ent = select_by_max(metrics["avg cont entropy"])
+best_idx = select_by_max(accuracies)
+trend_kappa = select_by_trend(fleiss_kappa_scores)
+
+print("Best checkpoint at ckpt {}: ".format(best_idx))
+print(full_results[best_idx])
+print("Best checkpoint selected by max fleiss kappa at ckpt {}:".format(max_kappa))
+print(full_results[max_kappa])
+print("Best checkpoint selected by max entropy at ckpt {}:".format(max_ent))
+print(full_results[max_ent])
+print("Best checkpoint selected by max cont entropy at ckpt {}:".format(max_cont_ent))
+print(full_results[max_cont_ent])
+print("Best checkpoint selected by last start-decreasing fleiss kappa at ckpt {}:".format(trend_kappa))
+print(full_results[trend_kappa])
