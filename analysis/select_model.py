@@ -152,10 +152,10 @@ def select_by_trend(values):
             first = True
         idx += 1
         prev = v
-    if best != -1:
-        return best
-    else:
-        return start_decrease
+    # if best != -1:
+    #     return best
+    # else:
+    return start_decrease
 
 
 def select_by_max(values):
