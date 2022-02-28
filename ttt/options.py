@@ -96,7 +96,7 @@ class TestArguments:
 
     peft_option: str = field(
         default="none",
-        metadata={"choices": ["prompt_tuning", "lora", "bitfit", "none"],
+        metadata={"choices": ["prompt_tuning", "lora", "bitfit", "none", "full"],
                 "help": ""}
     )
 

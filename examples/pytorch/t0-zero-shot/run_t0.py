@@ -186,6 +186,8 @@ def main():
             elif test_args.peft_option in ['lora', 'prompt_tuning'] and "ef_" in n:
                 logger.info("tune " + n)
                 p.requires_grad = True
+            elif test_args.peft_option == 'full':
+                p.requires_grad = True
             else:
                 p.requires_grad = False
         return model
