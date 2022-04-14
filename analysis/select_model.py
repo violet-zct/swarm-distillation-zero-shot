@@ -158,6 +158,18 @@ def select_by_trend(values):
     return start_decrease
 
 
+def select_by_last_decrease(values):
+    reverse_values = values[::-1]
+    idx, prev_value = 1, reverse_values[0]
+    for v in reverse_values[1:]:
+        if v >= prev_value:
+            prev_value = v
+        else:
+            # v < prev_value
+            return len(values) - idx
+        idx += 1
+
+
 def select_by_max(values):
     return np.argmax(values)
 
@@ -195,7 +207,8 @@ max_kappa = select_by_max(fleiss_kappa_scores)
 max_ent = select_by_max(metrics["avg entropy"])
 max_cont_ent = select_by_max(metrics["avg cont entropy"])
 best_idx = select_by_max(accuracies)
-trend_kappa = select_by_trend(fleiss_kappa_scores)
+# trend_kappa = select_by_trend(fleiss_kappa_scores)
+trend_kappa = select_by_last_decrease(fleiss_kappa_scores)
 
 print("Best checkpoint at ckpt {}: ".format(best_idx))
 print(full_results[best_idx])
