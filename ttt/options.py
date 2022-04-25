@@ -100,8 +100,8 @@ class TestArguments:
                 "help": ""}
     )
 
-    self_train_option: int = field(
-        default="single",
+    self_train_option: str = field(
+        default="none",
         metadata={"choices": ["single", "multiple", "none"]}
     )
 
