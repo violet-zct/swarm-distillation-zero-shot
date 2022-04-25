@@ -11,18 +11,19 @@ logger = logging.getLogger(__name__)
 
 class DatasetByPrompt(Dataset):
     # used for test, maybe need to extend this class for open-ended generation tasks
-    def __init__(self, args, cache_dir, tokenizer, split=None, hold_out=-1, random_hold_out=True):
+    def __init__(self, args, cache_dir, tokenizer, split=None, hold_out=-1, random_hold_out=True, testdev_set=False):
         super().__init__()
         self.cache_dir = cache_dir
 
         self.split = split
+        self.testdev_set = testdev_set  # if True, always use all prompts for ensemble predictions
         self.DATASET_NAME = args.dataset_name
         self.SUBSET_NAME = args.subset_name if args.subset_name != "none" else None
         self.TESTSET_NAME = args.testset_name
         self.PROMPTSET_NAME = args.prompt_set_name  # has subset name?
         self.task_type = args.task_type
         self.hold_out = hold_out
-        self.random_hold_out = random_hold_out
+        self.random_hold_out = random_hold_out  # if False, use the first "hold_out" number of samples in the data
         self.cb_surgery = args.cb_surgery
         self.load()
 
@@ -123,7 +124,7 @@ class DatasetByPrompt(Dataset):
         if self.SUBSET_NAME == "cb" and self.cb_surgery:
             return [name for ii, name in enumerate(prompt_names) if ii != 1 and ii != 10]
 
-        if self.abl_nprompts > 0:
+        if self.abl_nprompts > 0 and not self.testdev_set:
             prompt_names = np.random.choice(prompt_names, self.abl_nprompts, replace=False)
         return prompt_names
 

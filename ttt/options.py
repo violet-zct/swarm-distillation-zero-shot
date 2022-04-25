@@ -100,6 +100,11 @@ class TestArguments:
                 "help": ""}
     )
 
+    self_train_option: int = field(
+        default="single",
+        metadata={"choices": ["single", "multiple", "none"]}
+    )
+
     use_deepspeed: Optional[bool] = field(
         default=False,
     )

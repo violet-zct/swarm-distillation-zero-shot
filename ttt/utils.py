@@ -71,6 +71,7 @@ def compute_metrics(logprobs,
                     pseudo_dist="smooth",
                     return_all_prompt_preds=False,
                     random_selection_ensemble=0.0,
+                    self_train=False,
                     **kwargs):
     predictions = [[] for _ in range(num_prompts)]
     entropies = [[] for _ in range(num_prompts)]
@@ -115,7 +116,10 @@ def compute_metrics(logprobs,
         vote_probs = [c / total for c in counts]
 
         if return_all_prompt_preds and num_examples == 1:
-            random_indices = np.random.permutation(len(all_avg_probs))
+            if not self_train:
+                random_indices = np.random.permutation(len(all_avg_probs))
+            else:
+                random_indices = np.arange(len(all_avg_probs))
             avg_probs = [all_avg_probs[ii] for ii in random_indices]
             vote_probs = [[1 if c == predictions[ii][-1] else 0 for c in range(num_targets)] for ii in random_indices]
             return [ppt[0] for ppt in predictions], avg_probs, vote_probs

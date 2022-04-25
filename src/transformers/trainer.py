@@ -1870,11 +1870,13 @@ class Trainer:
                                                                               self.train_dataset.num_prompts,
                                                                               pseudo_dist=self.args.pseudo_dist,
                                                                               return_all_prompt_preds=self.args.pseudo_target_mode=="pairwise",
-                                                                              random_selection_ensemble=self.args.ensemble_subset_size,)
+                                                                              random_selection_ensemble=self.args.ensemble_subset_size,
+                                                                              self_train=self.args.self_train_option!="none")
                         # import pdb; pdb.set_trace()
                         if self.args.ensemble_option == "avg_prob":
                             ens_pred = avg_ens_pred
                         elif self.args.ensemble_option == "majority_vote":
+                            # argmax
                             ens_pred = vote_ens_pred
                         else:
                             raise ValueError("unknown ensemble: {}".format(self.args.ensemble_option))
