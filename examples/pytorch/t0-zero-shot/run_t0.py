@@ -156,7 +156,9 @@ def main():
     else:
         test_data_collator = None
 
-    test_data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, testdev_set=True)
+    test_data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer,
+                                testdev_set=False if test_args.self_train_option == "constrained" else True)
+    preset_prompts = test_data.original_task_prompts if test_args.self_train_option == "constrained" else None
     if test_args.train_random_n_prompts <= 0:
         test_args.train_random_n_prompts = test_data.num_prompts
 
@@ -261,9 +263,12 @@ def main():
         logger.info(f'using {test_args.train_random_n_prompts} prompts  during training')
 
         train_split = data_args.testset_name.replace("dev", "train") if data_args.dataset_name == "anli" else "train"
-        data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, split=train_split, hold_out=test_args.debug_size) \
+        data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, split=train_split,
+                               hold_out=test_args.debug_size, prompt_names=preset_prompts) \
             if test_args.train_data_source == 'train' else \
-            DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, hold_out=test_args.debug_size)
+            DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, hold_out=test_args.debug_size,
+                            prompt_names=preset_prompts)
+        logger.info("train data number prompts: {}".format(data.num_prompts))
         if test_args.loss_option == "entropy":
             train_data = TTTOfflineDataset(data, test_args, test_args.train_random_n_prompts)
         elif test_args.loss_option in ["token_level_divergence", "token_level_entropy"]:
@@ -279,10 +284,10 @@ def main():
         #     dev_data = data
         # else:
         dev_data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, split=train_split, hold_out=test_args.max_dev_size,
-            random_hold_out=False, testdev_set=True) \
+            random_hold_out=False, testdev_set=True, prompt_names=preset_prompts) \
             if test_args.train_data_source == 'train' else \
             DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, hold_out=test_args.max_dev_size,
-                            random_hold_out=False, testdev_set=True)
+                            random_hold_out=False, testdev_set=True, prompt_names=preset_prompts)
 
         # import pdb; pdb.set_trace()
 

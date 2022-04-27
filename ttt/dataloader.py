@@ -11,7 +11,8 @@ logger = logging.getLogger(__name__)
 
 class DatasetByPrompt(Dataset):
     # used for test, maybe need to extend this class for open-ended generation tasks
-    def __init__(self, args, cache_dir, tokenizer, split=None, hold_out=-1, random_hold_out=True, testdev_set=False):
+    def __init__(self, args, cache_dir, tokenizer, split=None, hold_out=-1, random_hold_out=True, testdev_set=False,
+                 prompt_names=None):
         super().__init__()
         self.cache_dir = cache_dir
 
@@ -30,7 +31,10 @@ class DatasetByPrompt(Dataset):
         self.tokenizer = tokenizer
         self.abl_nprompts = args.abl_nprompts
         self.prompts = DatasetTemplates(self.PROMPTSET_NAME, self.SUBSET_NAME)
-        self.original_task_prompts = self.extract_original_task_prompts(check_valid_prompts=self.SUBSET_NAME=="copa")
+        if prompt_names is None:
+            self.original_task_prompts = self.extract_original_task_prompts(check_valid_prompts=self.SUBSET_NAME=="copa")
+        else:
+            self.original_task_prompts = prompt_names
         self.construct_meta_info()
         self.num_choices = len(self.prompts[self.original_task_prompts[0]].get_answer_choices_list(self.dataset[0]))
         print("{} has {} original task prompts, number choices = {}, total test examples = {}".format(self.DATASET_NAME + ("/" + self.SUBSET_NAME) if self.SUBSET_NAME is not None else "",

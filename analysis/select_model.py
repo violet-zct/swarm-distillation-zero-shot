@@ -60,7 +60,7 @@ def compute_consistency_test_set(fname, read_only=False):
         for line in fin:
             if line.startswith("max_accuracy"):
                 fields = line.strip().split(",")
-                ensemble_res = ",".join(fields[-2:])
+                ensemble_res = ",".join([fields[1]]+fields[-2:])
                 if read_only:
                     return ensemble_res, line.strip()
 
@@ -168,7 +168,7 @@ def select_by_last_decrease(values):
             # v < prev_value
             return len(values) - idx
         idx += 1
-
+    return 0
 
 def select_by_max(values):
     return np.argmax(values)

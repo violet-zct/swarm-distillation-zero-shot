@@ -102,7 +102,9 @@ class TestArguments:
 
     self_train_option: str = field(
         default="none",
-        metadata={"choices": ["single", "multiple", "none"]}
+        metadata={"choices": ["single", "multiple", "none", "constrained"],
+                  "help": "for constrained, the number of prompts used is the same for test and train,"
+                          "otherwise, test always use all prompts"}
     )
 
     use_deepspeed: Optional[bool] = field(
