@@ -9,6 +9,112 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+class AdhocDatasetByPrompt(Dataset):
+    # used for test, maybe need to extend this class for open-ended generation tasks
+    def __init__(self, dataset_name, subset_name, testset_name, cache_dir, tokenizer, split=None, testdev_set=True):
+        super().__init__()
+        self.cache_dir = cache_dir
+
+        self.split = split
+        self.testdev_set = testdev_set  # if True, always use all prompts for ensemble predictions
+        self.DATASET_NAME = dataset_name
+        self.SUBSET_NAME = subset_name if subset_name != "none" else None
+        self.TESTSET_NAME = testset_name
+        self.PROMPTSET_NAME = dataset_name # has subset name?
+        self.cb_surgery = False
+        self.load()
+
+        self.tokenizer = tokenizer
+
+        self.prompts = DatasetTemplates(self.PROMPTSET_NAME, self.SUBSET_NAME)
+        self.original_task_prompts = self.extract_original_task_prompts(check_valid_prompts=self.SUBSET_NAME=="copa")
+
+        self.construct_meta_info()
+        self.num_choices = len(self.prompts[self.original_task_prompts[0]].get_answer_choices_list(self.dataset[0]))
+        print("{} has {} original task prompts, number choices = {}, total test examples = {}".format(self.DATASET_NAME + ("/" + self.SUBSET_NAME) if self.SUBSET_NAME is not None else "",
+                                                                                 len(self.original_task_prompts),
+                                                                                 self.num_choices,
+                                                                                 len(self)))
+
+    def load(self):
+        if self.DATASET_NAME == "story_cloze":
+            self.dataset = datasets.load_dataset("csv", data_files=os.path.join(self.cache_dir, "cloze_2016_val.csv"))["train"]
+        else:
+            self.dataset = datasets.load_dataset(self.DATASET_NAME, self.SUBSET_NAME,
+                                             cache_dir=self.cache_dir)[self.TESTSET_NAME if self.split is None else self.split]
+
+    @property
+    def num_prompts(self):
+        return len(self.original_task_prompts)
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        item = self.dataset[idx]
+        inputs = []
+        outputs = []
+        prev_label = None
+        for pname in self.original_task_prompts:
+            input_template, output_template = self.prompts[pname].apply(item)
+            # is output_template always the answer_choices[label]
+            targets = self.prompts[pname].get_answer_choices_list(item)
+            label = targets.index(output_template.strip())
+            assert prev_label is None or label == prev_label
+            prev_label = label
+            for answer in targets:
+                inputs.append(input_template.strip())
+                outputs.append(answer.strip())
+            self.set_num_choices(len(targets))
+
+        # return inputs, outputs, item['label']
+        if self.SUBSET_NAME == "cb" and self.cb_surgery:
+            model_inputs = self.tokenizer(inputs, padding=False, truncation=True)
+        else:
+            model_inputs = self.tokenizer(inputs, padding=False, truncation=True, add_special_tokens=False)
+        outputs_ids = self.tokenizer(outputs,  padding=False, truncation=True).input_ids
+        model_inputs['labels'] = [[l if l != self.tokenizer.pad_token_id else -100 for l in x] for x in outputs_ids]
+
+        results = [{
+            'input_ids': input_id,
+            'attention_mask': amask,
+            'labels': label,
+        } for input_id, amask, label in zip(model_inputs['input_ids'], model_inputs['attention_mask'], model_inputs['labels'])]
+        return results, label
+
+    def construct_meta_info(self):
+        answer_groups = defaultdict(list)
+
+        for pidx, pname in enumerate(self.original_task_prompts):
+            answer_choices = self.prompts[pname].get_fixed_answer_choices_list()
+            answer_choices = "_".join(answer_choices) if answer_choices is not None else None
+            answer_groups[answer_choices].append(pidx)
+        self.prompt_groups = [answer_groups[key] for key in answer_groups.keys()]
+
+    def set_num_choices(self, n):
+        check = True if self.num_choices == -1 else self.num_choices == n
+        assert check
+        self.num_choices = n
+
+    def extract_original_task_prompts(self, check_valid_prompts=False):
+        all_prompt_names = self.prompts.all_template_names
+        invalid_names = []
+        if check_valid_prompts:
+            for pname in all_prompt_names:
+                if self.prompts[pname].metadata.original_task:
+                    for d in self.dataset:
+                        return_value_length = len(self.prompts[pname].apply(d))
+                        if return_value_length != 2:
+                            invalid_names.append(pname)
+                            break
+        invalid_names = set(invalid_names)
+        prompt_names = [name for name in all_prompt_names if self.prompts[name].metadata.original_task and name not in invalid_names]
+        if self.SUBSET_NAME == "cb" and self.cb_surgery:
+            return [name for ii, name in enumerate(prompt_names) if ii != 1 and ii != 10]
+
+        return prompt_names
+
+
 class DatasetByPrompt(Dataset):
     # used for test, maybe need to extend this class for open-ended generation tasks
     def __init__(self, args, cache_dir, tokenizer, split=None, hold_out=-1, random_hold_out=True, testdev_set=False,

@@ -130,7 +130,7 @@ def main():
         if not hasattr(config, k):
             setattr(config, k, v)
             setattr(training_args, k, v)
-
+    setattr(training_args, "cache_dir", model_args.cache_dir)
     logger.info(f"Training/evaluation parameters {training_args}")
 
     tokenizer = AutoTokenizer.from_pretrained(
@@ -156,7 +156,7 @@ def main():
     else:
         test_data_collator = None
 
-    test_data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer,
+    test_data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, hold_out=test_args.quick_test_num,
                                 testdev_set=False if test_args.self_train_option == "constrained" else True)
     preset_prompts = test_data.original_task_prompts if test_args.self_train_option == "constrained" else None
     if test_args.train_random_n_prompts <= 0:
@@ -326,7 +326,7 @@ def main():
         for k, v in eval_results.items():
             logger.info("{} = {}".format(k, v))
 
-        compute_unsupervised_dev_best_results(training_args.output_dir, min_train_steps=test_args.min_train_steps)
+        # compute_unsupervised_dev_best_results(training_args.output_dir, min_train_steps=test_args.min_train_steps)
 
 
 def _mp_fn(index):

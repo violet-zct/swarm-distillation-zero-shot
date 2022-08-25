@@ -132,7 +132,7 @@ from .trainer_utils import (
 from .training_args import ParallelMode, TrainingArguments
 from .utils import logging
 sys.path.insert(2, "./")
-from ttt.dataloader import TTTOfflineLoopDataset
+from ttt.dataloader import TTTOfflineLoopDataset, AdhocDatasetByPrompt, TTTEvalDataset
 from ttt.utils import compute_loss_scale
 
 _is_torch_generator_available = False
@@ -2116,6 +2116,36 @@ class Trainer:
             self.early_stop_metric = metrics['avg entropy']
 
             self._report_to_hp_search(trial, epoch, metrics)
+
+        logger.info(self.state.global_step)
+        if self.state.global_step == self.args.test_steps and self.args.adhoc_test_datasets != "none":
+            for dname in self.args.adhoc_test_datasets.split(","):
+                if dname == "anli_r1":
+                    dataset_name = "anli"
+                    subset_name = "none"
+                    testset_name = "dev_r1"
+                elif dname == "anli_r2":
+                    dataset_name = "anli"
+                    subset_name = "none"
+                    testset_name = "dev_r2"
+                elif dname == "anli_r3":
+                    dataset_name = "anli"
+                    subset_name = "none"
+                    testset_name = "dev_r3"
+                elif dname == "cb":
+                    dataset_name = "super_glue"
+                    subset_name = "cb"
+                    testset_name = "validation"
+                elif dname == "rte":
+                    dataset_name = "super_glue"
+                    subset_name = "rte"
+                    testset_name = "validation"
+                else:
+                    raise NotImplementedError
+                logger.info("evaluate on {}".format(dataset_name))
+                test_data = TTTEvalDataset(AdhocDatasetByPrompt(dataset_name, subset_name, testset_name,
+                                                 self.args.cache_dir, tokenizer=self.tokenizer))
+                self.evaluate(test_data, ignore_keys=ignore_keys_for_eval)
 
         if self.control.should_save:
             self._save_checkpoint(model, trial, metrics=metrics)

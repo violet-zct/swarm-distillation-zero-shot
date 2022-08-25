@@ -256,3 +256,19 @@ class TestArguments:
         default=2,
         metadata={"help": "caveat: some datasets need to train longer"}
     )
+
+    ########### for rebuttal: test distribution shift ###############
+    adhoc_test_datasets: Optional[str] = field(
+        default="none",
+        metadata={"help": "comma separated"}
+    )
+
+    test_steps: Optional[int] = field(
+        default=-1,
+        metadata={"help": "a lazy method"}
+    )
+
+    quick_test_num: Optional[int] = field(
+        default=-1,
+        metadata={"help": "a lazy method"}
+    )
