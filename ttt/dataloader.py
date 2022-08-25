@@ -143,7 +143,7 @@ class DatasetByPrompt(Dataset):
             self.original_task_prompts = prompt_names
         self.construct_meta_info()
         self.num_choices = len(self.prompts[self.original_task_prompts[0]].get_answer_choices_list(self.dataset[0]))
-        print("{} has {} original task prompts, number choices = {}, total test examples = {}".format(self.DATASET_NAME + ("/" + self.SUBSET_NAME) if self.SUBSET_NAME is not None else "",
+        print("{} has {} original task prompts, number choices = {}, total test examples = {}".format(self.DATASET_NAME + (("/" + self.SUBSET_NAME) if self.SUBSET_NAME is not None else ""),
                                                                                  len(self.original_task_prompts),
                                                                                  self.num_choices,
                                                                                  len(self)))

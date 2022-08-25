@@ -2117,8 +2117,9 @@ class Trainer:
 
             self._report_to_hp_search(trial, epoch, metrics)
 
-        logger.info(self.state.global_step)
-        if self.state.global_step == self.args.test_steps and self.args.adhoc_test_datasets != "none":
+        evaluate_switch = (self.control.should_evaluate and self.args.test_steps == -2) or self.state.global_step == self.args.test_steps
+        if evaluate_switch and self.args.adhoc_test_datasets != "none":
+            logger.info(self.state.global_step)
             for dname in self.args.adhoc_test_datasets.split(","):
                 if dname == "anli_r1":
                     dataset_name = "anli"
@@ -2142,7 +2143,7 @@ class Trainer:
                     testset_name = "validation"
                 else:
                     raise NotImplementedError
-                logger.info("evaluate on {}".format(dataset_name))
+                logger.info(">>>>>>>>>>>>>>>>>>>> evaluate on {} {} {} >>>>>>>>>>>>>>>>>>".format(dataset_name, subset_name, testset_name))
                 test_data = TTTEvalDataset(AdhocDatasetByPrompt(dataset_name, subset_name, testset_name,
                                                  self.args.cache_dir, tokenizer=self.tokenizer))
                 self.evaluate(test_data, ignore_keys=ignore_keys_for_eval)
@@ -3048,7 +3049,7 @@ class Trainer:
         if (self.compute_metrics is not None or self.compute_unsupervised_metrics is not None) \
              and hasattr(self.args, 'test_mode') and self.args.test_mode == 'ttt_t0':
             compute_metrics = self.compute_metrics if metric_key_prefix != 'unsupervised_dev' else self.compute_unsupervised_metrics
-            dataset = self.eval_dataset if metric_key_prefix != 'unsupervised_dev' else self.dev_dataset
+            dataset = eval_dataset # if metric_key_prefix != 'unsupervised_dev' else self.dev_dataset
             eval_datasize = 1 if self.args.train_data_source == 'stream' else dataset.num_instances
             if self.args.train_data_source == 'stream':
                 preds, initial_predictions = compute_metrics(all_losses, 1, dataset.num_choices, dataset.num_prompts)

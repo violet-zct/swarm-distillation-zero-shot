@@ -265,7 +265,7 @@ class TestArguments:
 
     test_steps: Optional[int] = field(
         default=-1,
-        metadata={"help": "a lazy method"}
+        metadata={"help": "a lazy method, -2 is evaluate at every eval step"}
     )
 
     quick_test_num: Optional[int] = field(
