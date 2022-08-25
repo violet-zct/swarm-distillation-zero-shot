@@ -435,9 +435,14 @@ class TTTEvalDataset(Dataset):
     def construct_dataset(self, dataset: DatasetByPrompt):
         all_data = []
         labels = []
-        for examples, label in dataset:
+        for idx in range(self.num_instances):
+            examples, label = dataset[idx]
             all_data.extend(examples)
             labels.append(label)
+
+        # for examples, label in dataset:
+        #     all_data.extend(examples)
+        #     labels.append(label)
         return all_data, labels
 
     def __getitem__(self, idx):
