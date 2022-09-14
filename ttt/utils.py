@@ -225,16 +225,6 @@ def compute_metrics_simple(logprobs,
     avg_entropy = [np.mean(ents) for ents in entropies]
     vote_ensemble_metrics = metrics.compute(predictions=vote_ensemble_predictions, references=golds)
 
-    # print logits
-    if fout_name.startswith("results"):
-        nfout = fout_name + ".logits.p"
-    else:
-        nfout = os.path.join(fout_name, f'logits.{suffix}.p')
-    for pidx in range(num_prompts):
-        with open("{}{}".format(nfout, pidx), "w") as fout:
-            for logit in logits[pidx]:
-                fout.write(" ".join([str(l) for l in logit]) + "\n")
-
     results = write_results_to_file_v2(fout_name, prompt_metrics, predictions,
                                     avg_ensemble_metrics, avg_ensemble_predictions,
                                     vote_ensemble_metrics, vote_ensemble_predictions, golds, avg_entropy,
