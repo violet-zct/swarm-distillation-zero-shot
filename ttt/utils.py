@@ -251,7 +251,7 @@ def write_results_to_file_v2(fout_name, all_prompt_metrics, all_prompt_predictio
     results = {}
     num_prompts, num_examples = len(pred_probs[0]), len(pred_probs)
     fout = open(fout_name, "w")
-
+    fout.write("num_prompts={},num_examples={}\n".format(num_prompts, num_examples))
     for k, v in all_prompt_metrics[0].items():
         all_metrics = [pptm[k] * 100 for pptm in all_prompt_metrics]
         median_prompt = all_prompt_predictions[index_median(all_metrics)]
@@ -268,16 +268,19 @@ def write_results_to_file_v2(fout_name, all_prompt_metrics, all_prompt_predictio
         fout.write("acc:\t" + " ".join([str(vv) for vv in all_metrics]) + "\n")
         fout.write("ent:\t" + " ".join([str(vv) for vv in avg_entropy]) + "\n")
 
-        print("==================")
+        print("number of examples = {}".format(num_examples))
+
+        fout.write("==================\n")
         # output predictions of prompts for each example
         for ii in range(len(all_prompt_predictions[0])):
-            s = ",".join(["gold={}".format(golds[ii]), "median={}".format(median_prompt[ii]), "max={}".format(max_prompt[ii]),
+            s = ",".join(["eid={}".format(ii), "gold={}".format(golds[ii]), "median={}".format(median_prompt[ii]), "max={}".format(max_prompt[ii]),
                           "avg_esemb={}".format(avg_ensemble_preds[ii]), "vote_esemb={}".format(vote_ensemble_preds[ii])]) + ","
             s += " ".join([str(all_prompt_predictions[jj][ii]) for jj in range(len(all_prompt_predictions))])
             fout.write(s + "\n")
             for jj in range(len(pred_probs[0])):
                 fout.write(" ".join([str(round(pp, 4)) for pp in pred_probs[ii][jj]]) + "\n")
-            print("========================")
+            fout.write("========================\n")
+        fout.close()
     return results
 
 
