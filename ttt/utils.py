@@ -162,6 +162,125 @@ def compute_metrics(logprobs,
     return results, None
 
 
+def compute_metrics_simple(logprobs,
+                           num_examples,
+                           num_targets,
+                           num_prompts,
+                           golds=None,
+                           metrics=None,
+                           fout_name=None,
+                           suffix=None,
+                           pseudo_dist="smooth",
+                           **kwargs):
+    predictions = [[] for _ in range(num_prompts)]
+    entropies = [[] for _ in range(num_prompts)]
+    pred_probs = [[] for _ in range(num_examples)]
+    avg_ensemble_predictions = []
+    vote_ensemble_predictions = []
+    all_avg_probs = []  # only used when num of examples=1
+    idx = 0
+    logits = [[] for _ in range(num_prompts)]
+    for eidx in range(num_examples):
+        avg_probs = np.zeros(num_targets)
+        for pidx in range(num_prompts):
+            max_ll, pred_label = -np.inf, -1
+            # actually, the number of labels of each prompt should be the same
+            normalized_probs = np.zeros(num_targets)
+            logit = []
+            for ii in range(num_targets):
+                if logprobs[idx] > max_ll:
+                    max_ll, pred_label = logprobs[idx], ii
+                normalized_probs[ii] = math.exp(logprobs[idx])
+                logit.append(logprobs[idx])
+                idx += 1
+            logits[pidx].append(logit)
+            normalized_probs = normalized_probs / normalized_probs.sum()
+            pred_probs[eidx].append(normalized_probs)
+            entropies[pidx].append(-(normalized_probs * np.log(normalized_probs)).sum())
+            avg_probs += normalized_probs
+            all_avg_probs.append(normalized_probs)
+            predictions[pidx].append(pred_label)
+
+        # import pdb; pdb.set_trace()
+        avg_probs = avg_probs / num_prompts
+        all_preds = [ppt[-1] for ppt in predictions]
+
+        avg_label = np.argmax(avg_probs)
+        counts = [all_preds.count(ii) + 1 for ii in range(num_targets)]
+        vote_label = np.argmax(counts)
+        total = float(sum(counts))
+        vote_probs = [c / total for c in counts]
+
+        if pseudo_dist == 'argmax':
+            avg_probs = [1 if c == avg_label else 0 for c in range(num_targets)]
+            vote_probs = [1 if c == vote_label else 0 for c in range(num_targets)]
+
+        avg_ensemble_predictions.append(avg_label)
+        vote_ensemble_predictions.append(vote_label)
+
+    prompt_metrics = []
+    for ppred in predictions:
+        prompt_metrics.append(metrics.compute(predictions=ppred, references=golds))
+    avg_ensemble_metrics = metrics.compute(predictions=avg_ensemble_predictions, references=golds)
+    avg_entropy = [np.mean(ents) for ents in entropies]
+    vote_ensemble_metrics = metrics.compute(predictions=vote_ensemble_predictions, references=golds)
+
+    # print logits
+    if fout_name.startswith("results"):
+        nfout = fout_name + ".logits.p"
+    else:
+        nfout = os.path.join(fout_name, f'logits.{suffix}.p')
+    for pidx in range(num_prompts):
+        with open("{}{}".format(nfout, pidx), "w") as fout:
+            for logit in logits[pidx]:
+                fout.write(" ".join([str(l) for l in logit]) + "\n")
+
+    results = write_results_to_file_v2(fout_name, prompt_metrics, predictions,
+                                    avg_ensemble_metrics, avg_ensemble_predictions,
+                                    vote_ensemble_metrics, vote_ensemble_predictions, golds, avg_entropy,
+                                    pred_probs)
+    print(results)
+    return results, None
+
+
+
+def write_results_to_file_v2(fout_name, all_prompt_metrics, all_prompt_predictions,
+                            avg_ensemble_metrics, avg_ensemble_preds,
+                            vote_ensemble_metrics, vote_ensemble_preds,
+                            golds, avg_entropy=None, pred_probs=None):
+    results = {}
+    num_prompts, num_examples = len(pred_probs[0]), len(pred_probs)
+    fout = open(fout_name, "w")
+
+    for k, v in all_prompt_metrics[0].items():
+        all_metrics = [pptm[k] * 100 for pptm in all_prompt_metrics]
+        median_prompt = all_prompt_predictions[index_median(all_metrics)]
+        max_prompt = all_prompt_predictions[np.argsort(all_metrics)[-1]]
+        results["max_" + k] = round(np.max(all_metrics), 2)
+        results["median_" + k] = round(np.median(all_metrics), 2)
+        results["mean_" + k] = round(np.mean(all_metrics), 2)
+        results["min_" + k] = round(np.min(all_metrics), 2)
+        results["std_" + k] = round(np.std(all_metrics), 2)
+        results["avg_ensemble_" + k] = round(avg_ensemble_metrics[k]*100, 2)
+        results["vote_ensemble_" + k] = round(vote_ensemble_metrics[k] * 100, 2)
+
+        fout.write(",".join(["{}={}".format(kk, vv) for kk, vv in results.items()]) + "\n")
+        fout.write("acc:\t" + " ".join([str(vv) for vv in all_metrics]) + "\n")
+        fout.write("ent:\t" + " ".join([str(vv) for vv in avg_entropy]) + "\n")
+
+        print("==================")
+        # output predictions of prompts for each example
+        for ii in range(len(all_prompt_predictions[0])):
+            s = ",".join(["gold={}".format(golds[ii]), "median={}".format(median_prompt[ii]), "max={}".format(max_prompt[ii]),
+                          "avg_esemb={}".format(avg_ensemble_preds[ii]), "vote_esemb={}".format(vote_ensemble_preds[ii])]) + ","
+            s += " ".join([str(all_prompt_predictions[jj][ii]) for jj in range(len(all_prompt_predictions))])
+            fout.write(s + "\n")
+            for jj in range(len(pred_probs[0])):
+                fout.write(" ".join([str(round(pp, 4)) for pp in pred_probs[ii][jj]]) + "\n")
+            print("========================")
+    return results
+
+
 def print_dict(dd):
     for key, value in dd.items():
         if isinstance(value, np.ndarray):

@@ -20,7 +20,7 @@ from transformers import (
     set_seed,
 )
 from ttt.options import *
-from ttt.utils import compute_metrics, summarize_metrics, compute_unsupervised_metrics, compute_unsupervised_dev_best_results
+from ttt.utils import compute_metrics, compute_metrics_simple, summarize_metrics, compute_unsupervised_metrics, compute_unsupervised_dev_best_results
 from ttt.dataloader import DatasetByPrompt, TTTOnlineDataset, TTTOfflineDataset, TTTEvalDataset, \
     TTTOnlineTokenLossDataset, TTTOfflineTokenLossDataset, TTTOfflineLoopDataset
 
@@ -81,8 +81,8 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, data_
         if processed_batch % 10 == 0:
             logger.info("evaluating {} batches of test examples".format(processed_batch))
 
-    results, _ = compute_metrics(all_loglikelihoods, len(test_data), test_data.num_choices, test_data.num_prompts,
-                              golds, metrics, fout_name=fout_name)
+    results, _ = compute_metrics_simple(all_loglikelihoods, len(test_data), test_data.num_choices,
+                                        test_data.num_prompts, golds, metrics, fout_name=fout_name)
     for k, v in results.items():
         logger.info("{} = {}".format(k, v))
 
