@@ -43,7 +43,7 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, data_
     #                                  checkpoint=None,
     #                                  replace_method='auto')
     # model = ds_engine.module
-    fout_name = "results/" + "_".join([data_args.dataset_name, data_args.subset_name, data_args.testset_name, model_name.replace("/", ".")])
+    fout_name = "train_results/" + "_".join([data_args.dataset_name, data_args.subset_name, data_args.testset_name, model_name.replace("/", ".")])
     if "3B" not in model_name:
         model = model.to(dtype=torch.bfloat16, device=torch.cuda.current_device())
     model.eval()

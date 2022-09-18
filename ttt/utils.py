@@ -242,6 +242,7 @@ def write_results_to_file_v2(fout_name, all_prompt_metrics, all_prompt_predictio
     num_prompts, num_examples = len(pred_probs[0]), len(pred_probs)
     fout = open(fout_name, "w")
     fout.write("num_prompts={},num_examples={}\n".format(num_prompts, num_examples))
+    
     for k, v in all_prompt_metrics[0].items():
         all_metrics = [pptm[k] * 100 for pptm in all_prompt_metrics]
         median_prompt = all_prompt_predictions[index_median(all_metrics)]
@@ -254,6 +255,8 @@ def write_results_to_file_v2(fout_name, all_prompt_metrics, all_prompt_predictio
         results["avg_ensemble_" + k] = round(avg_ensemble_metrics[k]*100, 2)
         results["vote_ensemble_" + k] = round(vote_ensemble_metrics[k] * 100, 2)
 
+        fout.write("{}: {} {} {} {} {} {} {}\n".format(fout_name, num_prompts, results["max_" + k], results["median_" + k],
+                                                  results["mean_" + k], results["min_" + k], results["std_" + k], results["avg_ensemble_" + k]))
         fout.write(",".join(["{}={}".format(kk, vv) for kk, vv in results.items()]) + "\n")
         fout.write("acc:\t" + " ".join([str(vv) for vv in all_metrics]) + "\n")
         fout.write("ent:\t" + " ".join([str(vv) for vv in avg_entropy]) + "\n")
