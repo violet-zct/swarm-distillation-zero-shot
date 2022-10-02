@@ -17,12 +17,12 @@
 #SBATCH --array=0-50
 #SBATCH --wckey=submitit
 
-# command
-export MODULEPATH=/data/home/vkhalidov/modulefiles:$MODULEPATH
+# aws command
+# export MODULEPATH=/data/home/vkhalidov/modulefiles:$MODULEPATH
 module load cuda/11.3
-module load nccl/2.12.7-cuda.11.3
-module load nccl_efa/1.2.0-nccl.2.12.7-cuda.11.3
-export SUBMITIT_EXECUTOR=slurm
+# module load nccl/2.12.7-cuda.11.3
+# module load nccl_efa/1.2.0-nccl.2.12.7-cuda.11.3
+# export SUBMITIT_EXECUTOR=slurm
 
 source activate t0
 

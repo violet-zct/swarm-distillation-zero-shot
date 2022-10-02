@@ -18,12 +18,12 @@
 #SBATCH --wckey=submitit
 
 
-# command
-export MODULEPATH=/data/home/vkhalidov/modulefiles:$MODULEPATH
+# aws command
+# export MODULEPATH=/data/home/vkhalidov/modulefiles:$MODULEPATH
 module load cuda/11.3
-module load nccl/2.12.7-cuda.11.3
-module load nccl_efa/1.2.0-nccl.2.12.7-cuda.11.3
-export SUBMITIT_EXECUTOR=slurm
+# module load nccl/2.12.7-cuda.11.3
+# module load nccl_efa/1.2.0-nccl.2.12.7-cuda.11.3
+# export SUBMITIT_EXECUTOR=slurm
 
 source activate t0
 
@@ -40,7 +40,7 @@ export WANDB_MODE=offline
 
 DATE=`date +%Y%m%d`
 
-#SLURM_ARRAY_TASK_ID=0
+SLURM_ARRAY_TASK_ID=0
 use_ds="False"
 datasets=(wsc winogrande anli_r1 anli_r2 anli_r3 cb rte copa hellaswag story_cloze wic)
 dname=${datasets[$SLURM_ARRAY_TASK_ID]} # cb, wsc, copa, wic, anli_r1, anli_r2, anli_r3, winogrande, story_cloze, hellaswag
@@ -111,7 +111,7 @@ SAVE=results
 
 #CUDA_VISIBLE_DEVICES=0 python -u 
 #deepspeed --num_gpus 4 
-python -u examples/pytorch/t0-zero-shot/run_t0.py \
+CUDA_VISIBLE_DEVICES=0 python -u examples/pytorch/t0-zero-shot/run_t0.py \
   --dataset_name ${dataset} --subset_name ${subset} --prompt_set_name ${dataset} --testset_name ${testset_name} \
   --model_name_or_path ${model} --per_device_train_batch_size 1  --per_device_eval_batch_size ${bsz} \
   --use_deepspeed ${use_ds} --metric_name ${mname} \

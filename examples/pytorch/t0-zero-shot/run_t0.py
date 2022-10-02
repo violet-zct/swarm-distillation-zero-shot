@@ -1,5 +1,6 @@
 import math
 import os.path
+from re import T
 
 import torch
 
@@ -20,9 +21,9 @@ from transformers import (
     set_seed,
 )
 from ttt.options import *
-from ttt.utils import compute_metrics, compute_metrics_simple, summarize_metrics, compute_unsupervised_metrics, compute_unsupervised_dev_best_results
+from ttt.utils import compute_metrics, compute_metrics_simple, compute_metrics_train, summarize_metrics, compute_unsupervised_metrics, compute_unsupervised_dev_best_results
 from ttt.dataloader import DatasetByPrompt, TTTOnlineDataset, TTTOfflineDataset, TTTEvalDataset, \
-    TTTOnlineTokenLossDataset, TTTOfflineTokenLossDataset, TTTOfflineLoopDataset
+    TTTOnlineTokenLossDataset, TTTOfflineTokenLossDataset, TTTOfflineLoopDataset, TrainDatasetByPrompt
 
 import logging
 logger = logging.getLogger(__name__)
@@ -43,7 +44,7 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, data_
     #                                  checkpoint=None,
     #                                  replace_method='auto')
     # model = ds_engine.module
-    fout_name = "train_results/" + "_".join([data_args.dataset_name, data_args.subset_name, data_args.testset_name, model_name.replace("/", ".")])
+    fout_name = "results/" + "_".join([data_args.dataset_name, data_args.subset_name, data_args.testset_name, model_name.replace("/", ".")])
     if "3B" not in model_name:
         model = model.to(dtype=torch.bfloat16, device=torch.cuda.current_device())
     model.eval()
@@ -86,6 +87,66 @@ def batched_evalute_t0(model, tokenizer, test_data, data_args, batch_size, data_
     for k, v in results.items():
         logger.info("{} = {}".format(k, v))
 
+
+def batched_evalute_t0_train(model, tokenizer, test_data, data_args, batch_size, data_collator, model_name):
+    # print("world size = {}".format(torch.distributed.get_world_size()))
+    # ds_engine = deepspeed.init_inference(model, mp_size=torch.distributed.get_world_size(),
+    #                                  dtype=torch.half if fp16 else torch.float,
+    #                                  checkpoint=None,
+    #                                  replace_method='auto')
+    # model = ds_engine.module
+    fout_name = "train_results/" + "_".join([data_args.dataset_name, data_args.subset_name, data_args.testset_name, model_name.replace("/", ".")])
+    if "3B" not in model_name:
+        model = model.to(dtype=torch.bfloat16, device=torch.cuda.current_device())
+    model.eval()
+    model = model.to(torch.cuda.current_device())
+
+    all_data = []
+    prompt_info = []
+    example_index_starts = 0
+    for eidx in range(len(test_data)):
+        prompted_examples, prompt_groups = test_data[eidx]
+        gidx, pcount = 0, 0
+        for k, v in prompt_groups.items():
+            nchs, label = k.split("_")
+            nchs, label = int(nchs), int(label)
+            label = None if nchs == 1 else label
+            for pname, start_idx, pin, pout, choices in v:
+                prompt_info.append((example_index_starts+start_idx, example_index_starts+start_idx+nchs, eidx, gidx, label, pname, pin, pout, choices))
+                pcount += nchs
+            gidx += 1
+        example_index_starts += pcount
+        assert pcount == len(prompted_examples)
+        all_data.extend(prompted_examples)
+    prompt_info.sort(key=lambda x: x[0])
+
+    all_loglikelihoods = []
+    processed_batch = 0
+    vocab = tokenizer.get_vocab()
+    vocab = {v: k for k, v in vocab.items()}
+    print(vocab[0], vocab[1], vocab[2])
+    for bid1, bid2 in chunks(len(all_data), batch_size):
+        model_inputs = all_data[bid1: bid2]
+        model_inputs = data_collator(model_inputs)
+
+        # fixme: deepspeed offload to cpu, put onto cuda:0?
+        for k, v in model_inputs.items():
+            model_inputs[k] = model_inputs[k].to(model.device)
+
+        with torch.no_grad():
+            # log-likelihood per sequence
+            ll = model(**model_inputs).loss
+            all_loglikelihoods.extend(ll.to(dtype=torch.float32).cpu().numpy())
+   
+        processed_batch += 1
+        if processed_batch % 10 == 0:
+            logger.info("evaluating {} batches of test examples".format(processed_batch))
+
+    results, _ = compute_metrics_train(all_loglikelihoods, len(test_data), 
+                                        prompt_info, fout_name=fout_name)
+    for k, v in results.items():
+        logger.info("promt: {}\n".format(k))
+        logger.info(" ".join(["{} = {}".format(kk, vv) for kk, vv in v.items()]) + "\n")
 
 def main():
     parser = HfArgumentParser((ModelArguments, DataArguments, TrainingArguments, TestArguments))
@@ -157,8 +218,11 @@ def main():
     else:
         test_data_collator = None
 
-    test_data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, hold_out=test_args.quick_test_num,
-                                testdev_set=False if test_args.self_train_option == "constrained" else True)
+    if test_args.test_mode != "t0_train":
+        test_data = DatasetByPrompt(data_args, model_args.cache_dir, tokenizer, hold_out=test_args.quick_test_num,
+                                    testdev_set=False if test_args.self_train_option == "constrained" else True)
+    else:
+        test_data = TrainDatasetByPrompt(data_args, model_args.cache_dir, tokenizer, hold_out=-1)
     preset_prompts = test_data.original_task_prompts if test_args.self_train_option == "constrained" else None
     if test_args.train_random_n_prompts <= 0:
         test_args.train_random_n_prompts = test_data.num_prompts
@@ -195,7 +259,7 @@ def main():
                 p.requires_grad = False
         return model
 
-    if test_args.test_mode == "t0":
+    if test_args.test_mode == "t0" or test_args.test_mode == "t0_train":
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_args.model_name_or_path,
             from_tf=bool(".ckpt" in model_args.model_name_or_path),
@@ -205,8 +269,12 @@ def main():
             use_auth_token=True if model_args.use_auth_token else None,
         )
         model.resize_token_embeddings(len(tokenizer))
-        batched_evalute_t0(model, tokenizer, test_data, data_args, training_args.per_device_eval_batch_size,
-                        data_collator, metrics, model_args.model_name_or_path)
+        if test_args.test_mode == "t0":
+            batched_evalute_t0(model, tokenizer, test_data, data_args, training_args.per_device_eval_batch_size,
+                            data_collator, metrics, model_args.model_name_or_path)
+        else:
+            batched_evalute_t0_train(model, tokenizer, test_data, data_args, training_args.per_device_train_batch_size,
+                                    data_collator, model_args.model_name_or_path)
     elif test_args.test_mode == "ttt_t0" and test_args.train_data_source == 'stream':
         predictions = [[] for _ in range(test_data.num_prompts)]
         avg_ensemble_predictions = []

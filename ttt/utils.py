@@ -1,7 +1,9 @@
+from email.policy import default
 import numpy as np
 import scipy
 import math
 import os
+import json
 
 
 def index_median(array):
@@ -276,6 +278,82 @@ def write_results_to_file_v2(fout_name, all_prompt_metrics, all_prompt_predictio
         fout.close()
     return results
 
+def ece_score(py, y_test, n_bins=10):
+    py = np.array(py)
+    y_test = np.array(y_test)
+    if y_test.ndim > 1:
+        y_test = np.argmax(y_test, axis=1)
+    py_index = np.argmax(py, axis=1)
+    py_value = []
+    for i in range(py.shape[0]):
+        py_value.append(py[i, py_index[i]])
+    py_value = np.array(py_value)
+    acc, conf = np.zeros(n_bins), np.zeros(n_bins)
+    Bm = np.zeros(n_bins)
+    for m in range(n_bins):
+        a, b = m / n_bins, (m + 1) / n_bins
+        for i in range(py.shape[0]):
+            if py_value[i] > a and py_value[i] <= b:
+                Bm[m] += 1
+                if py_index[i] == y_test[i]:
+                    acc[m] += 1
+                conf[m] += py_value[i]
+        if Bm[m] != 0:
+            acc[m] = acc[m] / Bm[m]
+            conf[m] = conf[m] / Bm[m]
+    ece = 0
+    for m in range(n_bins):
+        ece += Bm[m] * np.abs((acc[m] - conf[m]))
+    return ece / sum(Bm)
+
+def compute_metrics_train(logprobs,
+                          num_examples,
+                          prompt_info,
+                          fout_name,):
+
+    data = []
+    classification_prompts_probs = defaultdict(list)
+    classification_prompts_golds = defaultdict(list)
+    prev_idx = -1
+    this_example = []
+    for sidx, edix, idx, gidx, label, pname, pin, pout, choices in prompt_info:
+        if idx != prev_idx:
+            prev_idx = idx
+            data.append(this_example)
+            this_example = []
+        this_logprob = logprobs[sidx:edix]
+        if choices is not None and len(choices) > 1:
+            normalized_probs = np.exp(this_logprob)
+            normalized_probs = normalized_probs / normalized_probs.sum()
+            classification_prompts_probs[pname].append(normalized_probs)
+            classification_prompts_golds[pname].append(label)
+        this_example.append({"prompt_name": pname, "pinput": pin, "poutput": pout, "group_idx": gidx, "label": label, "choices": choices, 
+                             "seq_log_probs": this_logprob})
+    
+    classification_prompt_scores = {}
+    all_accs = []
+    max_acc, min_acc, median_acc = 0, 1, 0
+    for pname in classification_prompts_golds.keys():
+        probs = np.array(classification_prompts_probs[pname])
+        preds = np.argmax(probs, axis=1)
+        golds = classification_prompts_golds[pname]
+        acc = np.equal(preds, golds).astype(np.float32).mean()
+        ece = ece_score(probs, golds, bin=20)
+        classification_prompt_scores[pname] = {"acc": acc, "ece": ece}
+        max_acc = max(max_acc, acc)
+        min_acc = min(min_acc, acc)
+        all_accs.append(acc)
+    median_acc = all_accs[index_median(all_accs)]
+    print("max_acc = {}, min_acc = {}, median_acc = {}".format(max_acc, min_acc, median_acc))
+
+    for example in data:
+        for pp in example:
+            pp["acc"] = classification_prompt_scores[pp["prompt_name"]]["acc"] if pp["prompt_name"] in classification_prompt_scores else None
+            pp["ece"] = classification_prompt_scores[pp["prompt_name"]]["ece"] if pp["prompt_name"] in classification_prompt_scores else None
+    
+    with open("{}.json".format(fout_name), "w") as fout:
+        json.dump(data, fout)
+    return classification_prompt_scores
 
 def print_dict(dd):
     for key, value in dd.items():

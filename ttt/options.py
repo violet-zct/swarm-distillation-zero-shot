@@ -79,7 +79,7 @@ class DataArguments:
 class TestArguments:
     test_mode: str = field(
         default="t0",
-        metadata={"choices": ["t0", "ttt_t0"],
+        metadata={"choices": ["t0", "ttt_t0", "t0_train"],
                   "help": ""}
     )
 
