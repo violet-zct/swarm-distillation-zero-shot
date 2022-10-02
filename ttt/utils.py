@@ -4,6 +4,7 @@ import scipy
 import math
 import os
 import json
+from collections import defaultdict
 
 
 def index_median(array):
@@ -319,7 +320,8 @@ def compute_metrics_train(logprobs,
     for sidx, edix, idx, gidx, label, pname, pin, pout, choices in prompt_info:
         if idx != prev_idx:
             prev_idx = idx
-            data.append(this_example)
+            if len(this_example) > 0:
+                data.append(this_example)
             this_example = []
         this_logprob = logprobs[sidx:edix]
         if choices is not None and len(choices) > 1:
@@ -328,8 +330,9 @@ def compute_metrics_train(logprobs,
             classification_prompts_probs[pname].append(normalized_probs)
             classification_prompts_golds[pname].append(label)
         this_example.append({"prompt_name": pname, "pinput": pin, "poutput": pout, "group_idx": gidx, "label": label, "choices": choices, 
-                             "seq_log_probs": this_logprob})
+                             "seq_log_probs": [float(ll) for ll in this_logprob]})
     
+    data.append(this_example)
     classification_prompt_scores = {}
     all_accs = []
     max_acc, min_acc, median_acc = 0, 1, 0
@@ -338,19 +341,21 @@ def compute_metrics_train(logprobs,
         preds = np.argmax(probs, axis=1)
         golds = classification_prompts_golds[pname]
         acc = np.equal(preds, golds).astype(np.float32).mean()
-        ece = ece_score(probs, golds, bin=20)
-        classification_prompt_scores[pname] = {"acc": acc, "ece": ece}
+        ece = ece_score(probs, golds, n_bins=20)
+        classification_prompt_scores[pname] = {"acc": float(acc), "ece": float(ece)}
         max_acc = max(max_acc, acc)
         min_acc = min(min_acc, acc)
         all_accs.append(acc)
     median_acc = all_accs[index_median(all_accs)]
     print("max_acc = {}, min_acc = {}, median_acc = {}".format(max_acc, min_acc, median_acc))
-
+    
+    print(len(data))
+    print(data[0])
     for example in data:
         for pp in example:
             pp["acc"] = classification_prompt_scores[pp["prompt_name"]]["acc"] if pp["prompt_name"] in classification_prompt_scores else None
             pp["ece"] = classification_prompt_scores[pp["prompt_name"]]["ece"] if pp["prompt_name"] in classification_prompt_scores else None
-    
+    print(data[0]) 
     with open("{}.json".format(fout_name), "w") as fout:
         json.dump(data, fout)
     return classification_prompt_scores

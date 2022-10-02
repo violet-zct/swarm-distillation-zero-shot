@@ -108,9 +108,12 @@ def batched_evalute_t0_train(model, tokenizer, test_data, data_args, batch_size,
         prompted_examples, prompt_groups = test_data[eidx]
         gidx, pcount = 0, 0
         for k, v in prompt_groups.items():
-            nchs, label = k.split("_")
-            nchs, label = int(nchs), int(label)
-            label = None if nchs == 1 else label
+            if len(k.split("_")) == 2:
+                nchs, label = k.split("_")
+                nchs = int(nchs)
+                label = int(label) if nchs > 1 else None
+            else:
+                nchs, label = 1, None
             for pname, start_idx, pin, pout, choices in v:
                 prompt_info.append((example_index_starts+start_idx, example_index_starts+start_idx+nchs, eidx, gidx, label, pname, pin, pout, choices))
                 pcount += nchs
@@ -119,7 +122,7 @@ def batched_evalute_t0_train(model, tokenizer, test_data, data_args, batch_size,
         assert pcount == len(prompted_examples)
         all_data.extend(prompted_examples)
     prompt_info.sort(key=lambda x: x[0])
-
+    
     all_loglikelihoods = []
     processed_batch = 0
     vocab = tokenizer.get_vocab()
@@ -137,16 +140,15 @@ def batched_evalute_t0_train(model, tokenizer, test_data, data_args, batch_size,
             # log-likelihood per sequence
             ll = model(**model_inputs).loss
             all_loglikelihoods.extend(ll.to(dtype=torch.float32).cpu().numpy())
-   
         processed_batch += 1
         if processed_batch % 10 == 0:
             logger.info("evaluating {} batches of test examples".format(processed_batch))
-
-    results, _ = compute_metrics_train(all_loglikelihoods, len(test_data), 
+    
+    results = compute_metrics_train(all_loglikelihoods, len(test_data), 
                                         prompt_info, fout_name=fout_name)
     for k, v in results.items():
-        logger.info("promt: {}\n".format(k))
-        logger.info(" ".join(["{} = {}".format(kk, vv) for kk, vv in v.items()]) + "\n")
+        logger.info("promt: {}".format(k))
+        logger.info(" ".join(["{} = {}".format(kk, vv) for kk, vv in v.items()]))
 
 def main():
     parser = HfArgumentParser((ModelArguments, DataArguments, TrainingArguments, TestArguments))
@@ -273,7 +275,7 @@ def main():
             batched_evalute_t0(model, tokenizer, test_data, data_args, training_args.per_device_eval_batch_size,
                             data_collator, metrics, model_args.model_name_or_path)
         else:
-            batched_evalute_t0_train(model, tokenizer, test_data, data_args, training_args.per_device_train_batch_size,
+            batched_evalute_t0_train(model, tokenizer, test_data, data_args, training_args.per_device_eval_batch_size,
                                     data_collator, model_args.model_name_or_path)
     elif test_args.test_mode == "ttt_t0" and test_args.train_data_source == 'stream':
         predictions = [[] for _ in range(test_data.num_prompts)]
