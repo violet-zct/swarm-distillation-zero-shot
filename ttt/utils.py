@@ -335,9 +335,12 @@ def compute_metrics_train(logprobs,
     data.append(this_example)
     classification_prompt_scores = {}
     all_accs = []
-    max_acc, min_acc, median_acc = 0, 1, 0
+    max_acc, min_acc, median_acc = 0., 1., 0.
     for pname in classification_prompts_golds.keys():
         probs = np.array(classification_prompts_probs[pname])
+        if probs.ndim != 2:
+            # hack: some prompts has inequal number of choices
+            continue
         preds = np.argmax(probs, axis=1)
         golds = classification_prompts_golds[pname]
         acc = np.equal(preds, golds).astype(np.float32).mean()
@@ -346,11 +349,11 @@ def compute_metrics_train(logprobs,
         max_acc = max(max_acc, acc)
         min_acc = min(min_acc, acc)
         all_accs.append(acc)
-    median_acc = all_accs[index_median(all_accs)]
+    if len(all_accs) > 0:
+        median_acc = all_accs[index_median(all_accs)]
     print("max_acc = {}, min_acc = {}, median_acc = {}".format(max_acc, min_acc, median_acc))
     
     print(len(data))
-    print(data[0])
     for example in data:
         for pp in example:
             pp["acc"] = classification_prompt_scores[pp["prompt_name"]]["acc"] if pp["prompt_name"] in classification_prompt_scores else None

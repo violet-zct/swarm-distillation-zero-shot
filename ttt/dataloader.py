@@ -469,7 +469,7 @@ class TrainDatasetByPrompt(Dataset):
         self.prompts = DatasetTemplates(self.PROMPTSET_NAME, self.SUBSET_NAME)
         self.task_prompts, self.original_task_prompts = self.extract_original_task_prompts(check_valid_prompts=False)
 
-        choices = self.prompts[self.original_task_prompts[0]].get_answer_choices_list(self.dataset[0])
+        choices = self.prompts[self.task_prompts[0]].get_answer_choices_list(self.dataset[0])
         if choices is not None:
             # this might not be true, as different prompts might have different number of choices
             self.num_choices = len(choices)
@@ -512,6 +512,9 @@ class TrainDatasetByPrompt(Dataset):
             choices = self.prompts[pname].get_answer_choices_list(item)
             if choices is not None:
                 num_choices = len(choices)
+                if output_template.strip() not in choices:
+                    # hack: some prompts are wrongly templated
+                    continue
                 label = choices.index(output_template.strip())
                 prompt_groups["{}_{}".format(num_choices, label)].append((pname, len(inputs), input_template.strip(), output_template.strip(), choices))
                 for answer in choices:
