@@ -506,9 +506,15 @@ class TrainDatasetByPrompt(Dataset):
         prompt_groups = defaultdict(list) # put in the prompt name and its position in the inputs
         prev_label = None
         for pname in self.task_prompts:
-            if len(self.prompts[pname].apply(item)) != 2:
+            try:
+                applied_prompt = self.prompts[pname].apply(item)
+            except:
+                continue
+            if len(applied_prompt) != 2:
                 continue
             input_template, output_template = self.prompts[pname].apply(item)
+            if input_template.strip() == "" or output_template.strip() == "":
+                continue
             choices = self.prompts[pname].get_answer_choices_list(item)
             if choices is not None:
                 num_choices = len(choices)
@@ -525,6 +531,8 @@ class TrainDatasetByPrompt(Dataset):
                 inputs.append(input_template.strip())
                 outputs.append(output_template.strip())
                 # return inputs, outputs, item['label']
+        if len(inputs) == 0:
+            return None, None
         if self.SUBSET_NAME == "cb" and self.cb_surgery:
             model_inputs = self.tokenizer(inputs, padding=False, truncation=True)
         else:

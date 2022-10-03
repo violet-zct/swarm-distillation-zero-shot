@@ -106,6 +106,8 @@ def batched_evalute_t0_train(model, tokenizer, test_data, data_args, batch_size,
     example_index_starts = 0
     for eidx in range(len(test_data)):
         prompted_examples, prompt_groups = test_data[eidx]
+        if prompted_examples is None:
+            continue
         gidx, pcount = 0, 0
         for k, v in prompt_groups.items():
             if len(k.split("_")) == 2:
@@ -127,7 +129,7 @@ def batched_evalute_t0_train(model, tokenizer, test_data, data_args, batch_size,
     processed_batch = 0
     vocab = tokenizer.get_vocab()
     vocab = {v: k for k, v in vocab.items()}
-    print(vocab[0], vocab[1], vocab[2])
+    print(len(all_data), vocab[0], vocab[1], vocab[2])
     for bid1, bid2 in chunks(len(all_data), batch_size):
         model_inputs = all_data[bid1: bid2]
         model_inputs = data_collator(model_inputs)
