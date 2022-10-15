@@ -1,28 +1,28 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --partition=learnlab
+#SBATCH --partition=p4de
 #SBATCH --job-name=eval.11b
 ##SBATCH --comment="NeurIPS 2022 rebuttal deadline"
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=10
-#SBATCH --exclude 'a100-st-p4d24xlarge-459,a100-st-p4d24xlarge-465'
+##SBATCH --exclude 'a100-st-p4d24xlarge-459,a100-st-p4d24xlarge-465'
 #SBATCH --mem=0GB
 #SBATCH --signal=USR1@90
 #SBATCH --open-mode=append
-#SBATCH --time=2:00:00
-##SBATCH --time=0
-#SBATCH --array=0-50
+##SBATCH --time=5:00:00
+#SBATCH --time=0
+#SBATCH --array=16,36
 #SBATCH --wckey=submitit
 
 # aws command
-# export MODULEPATH=/data/home/vkhalidov/modulefiles:$MODULEPATH
+export MODULEPATH=/data/home/vkhalidov/modulefiles:$MODULEPATH
 module load cuda/11.3
-# module load nccl/2.12.7-cuda.11.3
-# module load nccl_efa/1.2.0-nccl.2.12.7-cuda.11.3
-# export SUBMITIT_EXECUTOR=slurm
+module load nccl/2.12.7-cuda.11.3
+module load nccl_efa/1.2.0-nccl.2.12.7-cuda.11.3
+export SUBMITIT_EXECUTOR=slurm
 
 source activate t0
 
@@ -262,10 +262,15 @@ if [ ${testset_name} = "train" ]; then
   exit
 fi
 
-test_mode="t0"
+if [ -f "train_results/${dataset}_${subset}_${testset_name}_bigscience.T0.json" ]; then
+	echo "completed!"
+	exit
+fi
+
+test_mode="t0_train"
 mname="accuracy"
 model="T0"
-bsz=50
+bsz=100
 
 if [ ${dname} = "hellaswag" ]; then
 	bsz=50
@@ -281,7 +286,7 @@ SAVE=results
 #deepspeed --num_gpus 4 
 python -u examples/pytorch/t0-zero-shot/run_t0.py \
   --dataset_name ${dataset} --subset_name ${subset} --prompt_set_name ${dataset} --testset_name ${testset_name} \
-  --model_name_or_path ${model} --per_device_train_batch_size 1  --per_device_eval_batch_size ${bsz} \
+  --model_name_or_path ${model} --per_device_train_batch_size ${bsz}  --per_device_eval_batch_size ${bsz} \
   --use_deepspeed ${use_ds} --metric_name ${mname} \
   --test_mode ${test_mode} --cache_dir ${cache_dir} \
   --output_dir ${SAVE} --overwrite_output_dir --cb_surgery 0 \
